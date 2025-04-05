@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import StudentDashboard from "./pages/student/StudentDashboard";
+import StudentProfile from "./pages/student/StudentProfile";
 import PlacementDashboard from "./pages/placement/PlacementDashboard";
 import EmployerDashboard from "./pages/employer/EmployerDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -24,6 +25,7 @@ const App = () => (
           
           {/* Student Routes */}
           <Route path="/student-dashboard" element={<StudentDashboard />} />
+          <Route path="/student-profile" element={<StudentProfile />} />
           
           {/* Placement Department Routes */}
           <Route path="/placement-dashboard" element={<PlacementDashboard />} />
