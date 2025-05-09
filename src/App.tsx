@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import StudentProfile from "./pages/student/StudentProfile";
+import StudentApplications from "./pages/student/StudentApplications";
 import PlacementDashboard from "./pages/placement/PlacementDashboard";
 import EmployerDashboard from "./pages/employer/EmployerDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -26,6 +27,7 @@ const App = () => (
           {/* Student Routes */}
           <Route path="/student-dashboard" element={<StudentDashboard />} />
           <Route path="/student-profile" element={<StudentProfile />} />
+          <Route path="/student-applications" element={<StudentApplications />} />
           
           {/* Placement Department Routes */}
           <Route path="/placement-dashboard" element={<PlacementDashboard />} />
