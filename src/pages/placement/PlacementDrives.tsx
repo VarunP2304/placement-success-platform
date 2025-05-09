@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import Layout from "@/components/layout/Layout";
 import {
@@ -94,9 +95,9 @@ const PlacementDrives = () => {
       case "Upcoming":
         return "default";
       case "Ongoing":
-        return "success";
-      case "Completed":
         return "secondary";
+      case "Completed":
+        return "outline";
       default:
         return "outline";
     }

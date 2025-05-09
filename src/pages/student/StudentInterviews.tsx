@@ -173,9 +173,9 @@ const StudentInterviews = () => {
                           <Badge
                             variant={
                               interview.result === "Selected"
-                                ? "success"
+                                ? "default"
                                 : interview.result.includes("Shortlisted")
-                                ? "warning"
+                                ? "secondary"
                                 : "destructive"
                             }
                           >
