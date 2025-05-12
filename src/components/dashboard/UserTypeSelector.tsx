@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, validateUsername } from "@/lib/utils";
 import { authService } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
@@ -27,6 +27,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import UsernameFormatHelp from "./UsernameFormatHelp";
 
 type UserType = "student" | "placement" | "employer" | "admin";
 
@@ -35,10 +36,6 @@ interface UserTypeOption {
   title: string;
   description: string;
   dashboardPath: string;
-  usernamePattern: {
-    regex: RegExp;
-    hint: string;
-  };
 }
 
 const userTypes: UserTypeOption[] = [
@@ -47,40 +44,24 @@ const userTypes: UserTypeOption[] = [
     title: "Student",
     description: "Access your profile, applications, and resources",
     dashboardPath: "/student-dashboard",
-    usernamePattern: {
-      regex: /^4SF22(CI|IS|ME|RA|CS|CD)[0-9]{3}$/,
-      hint: "Format: 4SF22CI123 (where CI can be IS, ME, RA, CS, or CD)",
-    },
   },
   {
     type: "placement",
     title: "Placement Department",
     description: "Manage drives, students, and employers",
     dashboardPath: "/placement-dashboard",
-    usernamePattern: {
-      regex: /^FA[0-9]{3}$/,
-      hint: "Format: FA123 (where 123 is a 3-digit number)",
-    },
   },
   {
     type: "employer",
     title: "Employer",
     description: "Post jobs, manage applications, and find talent",
     dashboardPath: "/employer-dashboard",
-    usernamePattern: {
-      regex: /^CA[0-9]{3}$/,
-      hint: "Format: CA123 (where 123 is a 3-digit number)",
-    },
   },
   {
     type: "admin",
     title: "System Administrator",
     description: "Manage users, permissions, and system settings",
     dashboardPath: "/admin-dashboard",
-    usernamePattern: {
-      regex: /^SA[0-9]{3}$/,
-      hint: "Format: SA123 (where 123 is a 3-digit number)",
-    },
   },
 ];
 
@@ -88,22 +69,21 @@ export default function UserTypeSelector() {
   const [selectedType, setSelectedType] = useState<UserType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showLoginForm, setShowLoginForm] = useState(false);
+  const [serverError, setServerError] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   
   // Create schema based on selected user type
   const createFormSchema = (selectedType: UserType | null) => {
-    const selectedUserType = userTypes.find((type) => type.type === selectedType);
-    
     return z.object({
       username: z
         .string()
         .min(1, "Username is required")
         .refine(
-          (val) => selectedUserType ? selectedUserType.usernamePattern.regex.test(val) : true, 
-          { message: selectedUserType ? `Invalid format. ${selectedUserType.usernamePattern.hint}` : "Invalid username" }
+          (val) => selectedType ? validateUsername(val, selectedType) : true, 
+          { message: "Invalid username format" }
         ),
-      password: z.string().min(6, "Password must be at least 6 characters"),
+      password: z.string().min(1, "Password is required"),
     });
   };
 
@@ -121,10 +101,40 @@ export default function UserTypeSelector() {
     }
   };
 
+  const checkServerConnection = async () => {
+    try {
+      // For demonstration purposes, we'll simulate a server check
+      // In a real app, you might do a simple ping to your server
+      await fetch("http://localhost:5000/api/health", { method: "HEAD" })
+        .then(() => setServerError(false))
+        .catch(() => {
+          setServerError(true);
+          throw new Error("Backend server not running");
+        });
+      return true;
+    } catch (error) {
+      setServerError(true);
+      return false;
+    }
+  };
+
   const handleLogin = async (values: z.infer<ReturnType<typeof createFormSchema>>) => {
     if (selectedType) {
       try {
         setIsLoading(true);
+        
+        // Check if server is running first
+        const isServerRunning = await checkServerConnection();
+        
+        if (!isServerRunning) {
+          toast({
+            title: "Server connection error",
+            description: "Cannot connect to backend server. Is it running?",
+            variant: "destructive",
+          });
+          return;
+        }
+        
         const response = await authService.login(values.username, values.password, selectedType);
         
         if (response.success) {
@@ -146,9 +156,14 @@ export default function UserTypeSelector() {
         }
       } catch (error: any) {
         console.error("Login error:", error);
+        const errorMessage = error.response?.data?.message || 
+          (error.code === "ERR_NETWORK" 
+            ? "Cannot connect to the backend server. Please make sure it's running." 
+            : "Login failed. Please try again later.");
+            
         toast({
           title: "Login failed",
-          description: error.response?.data?.message || "Please try again later",
+          description: errorMessage,
           variant: "destructive",
         });
       } finally {
@@ -160,6 +175,7 @@ export default function UserTypeSelector() {
   const goBack = () => {
     setShowLoginForm(false);
     form.reset();
+    setServerError(false);
   };
 
   return (
@@ -234,8 +250,15 @@ export default function UserTypeSelector() {
                         <FormControl>
                           <Input placeholder="Enter your username" {...field} />
                         </FormControl>
-                        <FormDescription>
-                          {selectedType && userTypes.find(type => type.type === selectedType)?.usernamePattern.hint}
+                        <FormDescription className="flex items-center space-x-1">
+                          <span>
+                            {selectedType && `For demo, use valid format like ${
+                              selectedType === "student" ? "4SF22CI001" : 
+                              selectedType === "placement" ? "FA001" : 
+                              selectedType === "employer" ? "CA001" : "SA001"
+                            }`}
+                          </span>
+                          <UsernameFormatHelp userType={selectedType as "student" | "placement" | "employer" | "admin"} />
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -254,10 +277,19 @@ export default function UserTypeSelector() {
                             {...field} 
                           />
                         </FormControl>
+                        <FormDescription>
+                          For demo, use "password123"
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                  {serverError && (
+                    <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+                      <p>Cannot connect to backend server. Please make sure the server is running on http://localhost:5000</p>
+                      <p className="mt-1 font-medium">Run this command in the server directory: npm run dev</p>
+                    </div>
+                  )}
                   <div className="flex gap-4 pt-4">
                     <Button 
                       type="button" 

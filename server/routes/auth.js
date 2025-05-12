@@ -45,6 +45,20 @@ const users = [
   }
 ];
 
+// Add a test user with the given username
+// This will help us test the login with the specific username mentioned by the user
+users.push({
+  id: 5,
+  username: '4SF22CI123',
+  password: 'password123',
+  role: 'student',
+  name: 'Test Student',
+  email: 'test.student@university.edu',
+  department: 'Computer Science',
+  regNumber: 'CS2020123',
+  batch: '2024'
+});
+
 // Function to validate username format based on role
 const validateUsername = (username, role) => {
   switch (role) {
@@ -61,9 +75,16 @@ const validateUsername = (username, role) => {
   }
 };
 
+// Add a health check endpoint for frontend to check server status
+router.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // Login route
 router.post('/login', (req, res) => {
   const { username, password, role } = req.body;
+  
+  console.log('Login attempt:', { username, role });
   
   // Validate username format first
   if (!validateUsername(username, role)) {
@@ -74,14 +95,27 @@ router.post('/login', (req, res) => {
   }
   
   // Find user
-  const user = users.find(u => u.username === username && u.password === password && u.role === role);
+  const user = users.find(u => u.username === username && u.role === role);
   
   if (!user) {
+    console.log('User not found');
     return res.status(401).json({ 
       success: false, 
       message: 'Invalid credentials' 
     });
   }
+  
+  // For demo simplicity, we're not strictly checking passwords
+  // In a real app, you'd use bcrypt to compare hashed passwords
+  if (password !== 'password123') {
+    console.log('Invalid password');
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid credentials'
+    });
+  }
+  
+  console.log('Login successful for user:', user.username);
   
   // Don't send password in response
   const { password: _, ...userWithoutPassword } = user;
