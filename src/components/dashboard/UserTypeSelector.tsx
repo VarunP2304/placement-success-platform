@@ -12,6 +12,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { authService } from "@/services/api";
+import { useToast } from "@/hooks/use-toast";
 
 type UserType = "student" | "placement" | "employer" | "admin";
 
@@ -51,13 +53,43 @@ const userTypes: UserTypeOption[] = [
 
 export default function UserTypeSelector() {
   const [selectedType, setSelectedType] = useState<UserType | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selectedType) {
-      const selected = userTypes.find((type) => type.type === selectedType);
-      if (selected) {
-        navigate(selected.dashboardPath);
+      try {
+        setIsLoading(true);
+        // Use selected type as username and a fixed password for this demo
+        const response = await authService.login(selectedType, "password123");
+        
+        if (response.success) {
+          // Store token and user in localStorage
+          localStorage.setItem('token', response.data.token);
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+          
+          // Show success toast
+          toast({
+            title: "Login successful",
+            description: `Welcome back, ${response.data.user.name}`,
+          });
+          
+          // Navigate to dashboard
+          const selected = userTypes.find((type) => type.type === selectedType);
+          if (selected) {
+            navigate(selected.dashboardPath);
+          }
+        }
+      } catch (error) {
+        console.error("Login error:", error);
+        toast({
+          title: "Login failed",
+          description: "Please try again later",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
       }
     }
   };
@@ -102,10 +134,10 @@ export default function UserTypeSelector() {
         <Button
           size="lg"
           onClick={handleContinue}
-          disabled={!selectedType}
+          disabled={!selectedType || isLoading}
           className="px-8"
         >
-          Continue
+          {isLoading ? "Logging in..." : "Continue"}
         </Button>
       </div>
     </div>
