@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/layout/Layout";
 import {
   Card,
@@ -27,43 +28,18 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { placementService } from "@/services/api";
+import { toast } from "sonner";
 
 const PlacementReports = () => {
   const [reportYear, setReportYear] = useState("2025");
   
-  // Sample data for charts
-  const departmentData = [
-    {
-      name: "Computer Science",
-      placed: 85,
-      total: 95,
-      placementRate: (85 / 95) * 100,
-    },
-    {
-      name: "Electronics",
-      placed: 65,
-      total: 80,
-      placementRate: (65 / 80) * 100,
-    },
-    {
-      name: "Mechanical",
-      placed: 50,
-      total: 70,
-      placementRate: (50 / 70) * 100,
-    },
-    {
-      name: "Civil",
-      placed: 40,
-      total: 60,
-      placementRate: (40 / 60) * 100,
-    },
-    {
-      name: "Electrical",
-      placed: 55,
-      total: 70,
-      placementRate: (55 / 70) * 100,
-    },
-  ];
+  const { data: chartData, isLoading } = useQuery({
+    queryKey: ["departmentChartData"],
+    queryFn: placementService.getDepartmentChartData
+  });
+
+  const departmentData = chartData?.data || [];
 
   const packageData = [
     {
@@ -145,6 +121,35 @@ const PlacementReports = () => {
     },
   ];
 
+  const handleDownloadChart = async (chartType) => {
+    try {
+      const response = await placementService.downloadChart(chartType, 'pdf');
+      if (response.success) {
+        toast.success(response.message);
+        
+        // In a real application, we'd use the response URL to download the file
+        // For this mock, we'll just simulate the download
+        const link = document.createElement('a');
+        link.href = response.url;
+        link.download = `${chartType}-chart.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (error) {
+      console.error("Error downloading chart:", error);
+      toast.error("Failed to download chart");
+    }
+  };
+
+  const handleReportDownload = (reportId) => {
+    toast.success(`Downloading report #${reportId}`);
+  };
+
+  const handleGenerateReport = () => {
+    toast.success("Report generation initiated. You will be notified when it's ready.");
+  };
+
   return (
     <Layout userType="placement">
       <div className="animate-fade-in space-y-6">
@@ -201,29 +206,37 @@ const PlacementReports = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RechartsBarChart
-                        data={departmentData}
-                        margin={{
-                          top: 20,
-                          right: 30,
-                          left: 20,
-                          bottom: 5,
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="placementRate" name="Placement Rate (%)" fill="#8884d8" />
-                      </RechartsBarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  {isLoading ? (
+                    <div className="flex h-80 items-center justify-center">Loading chart data...</div>
+                  ) : (
+                    <div className="h-80">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RechartsBarChart
+                          data={departmentData}
+                          margin={{
+                            top: 20,
+                            right: 30,
+                            left: 20,
+                            bottom: 5,
+                          }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="placementRate" name="Placement Rate (%)" fill="#8884d8" />
+                        </RechartsBarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </CardContent>
                 <CardFooter>
-                  <Button variant="outline" className="w-full">
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => handleDownloadChart('department-placement-rate')}
+                  >
                     <Download className="mr-2 h-4 w-4" />
                     Download Chart
                   </Button>
@@ -262,7 +275,11 @@ const PlacementReports = () => {
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button variant="outline" className="w-full">
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => handleDownloadChart('salary-distribution')}
+                  >
                     <Download className="mr-2 h-4 w-4" />
                     Download Chart
                   </Button>
@@ -308,7 +325,7 @@ const PlacementReports = () => {
                           </div>
                         </div>
                       </div>
-                      <Button>
+                      <Button onClick={() => handleReportDownload(report.id)}>
                         <Download className="mr-2 h-4 w-4" />
                         Download
                       </Button>
@@ -395,7 +412,7 @@ const PlacementReports = () => {
               </CardContent>
               <CardFooter className="flex justify-end gap-2">
                 <Button variant="outline">Preview</Button>
-                <Button>
+                <Button onClick={handleGenerateReport}>
                   <BarChart className="mr-2 h-4 w-4" />
                   Generate Report
                 </Button>

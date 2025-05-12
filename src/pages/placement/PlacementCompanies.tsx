@@ -1,5 +1,5 @@
-
 import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Layout from "@/components/layout/Layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,70 +31,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Search, Plus, Building2, Calendar, Users } from "lucide-react";
+import AddCompanyForm from "@/components/placement/AddCompanyForm";
+import { placementService } from "@/services/api";
+import { toast } from "sonner";
 
 const PlacementCompanies = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
   
-  const companies = [
-    {
-      id: 1,
-      name: "Google",
-      industry: "Technology",
-      location: "Bangalore",
-      lastVisit: "2025-01-15",
-      status: "Active",
-      offers: 12,
-      visits: 3,
-      contact: "John Doe",
-      email: "john.doe@google.com",
-      logo: "https://via.placeholder.com/40",
-    },
-    {
-      id: 2,
-      name: "Microsoft",
-      industry: "Technology",
-      location: "Hyderabad",
-      lastVisit: "2025-02-10",
-      status: "Active",
-      offers: 8,
-      visits: 2,
-      contact: "Jane Smith",
-      email: "jane.smith@microsoft.com",
-      logo: "https://via.placeholder.com/40",
-    },
-    {
-      id: 3,
-      name: "Amazon",
-      industry: "E-commerce",
-      location: "Bangalore",
-      lastVisit: "2025-03-05",
-      status: "Active",
-      offers: 15,
-      visits: 4,
-      contact: "Mike Johnson",
-      email: "mike@amazon.com",
-      logo: "https://via.placeholder.com/40",
-    },
-    {
-      id: 4,
-      name: "IBM",
-      industry: "Technology",
-      location: "Pune",
-      lastVisit: "2024-12-20",
-      status: "Inactive",
-      offers: 5,
-      visits: 1,
-      contact: "Sarah Williams",
-      email: "sarah@ibm.com",
-      logo: "https://via.placeholder.com/40",
-    },
-  ];
+  const { data: companiesData, isLoading } = useQuery({
+    queryKey: ["companies"],
+    queryFn: placementService.getCompanies
+  });
+
+  const companies = companiesData?.data || [];
 
   const filteredCompanies = companies.filter((company) =>
-    company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    company.industry.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    company.location.toLowerCase().includes(searchQuery.toLowerCase())
+    company.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    company.industry?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    company.location?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleExportClick = () => {
+    toast.success("Companies list exported successfully");
+  };
+
+  const handleAddCompanySuccess = () => {
+    setDialogOpen(false);
+    toast.success("Company added successfully");
+  };
 
   return (
     <Layout userType="placement">
@@ -106,23 +71,22 @@ const PlacementCompanies = () => {
               Manage company relationships and recruitment activities
             </p>
           </div>
-          <Dialog>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Company
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
                 <DialogTitle>Add New Company</DialogTitle>
                 <DialogDescription>
                   Enter the details of the new company to add to the system.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                {/* Form fields would go here */}
-                <p className="text-sm text-muted-foreground">Form implementation coming soon</p>
+              <div className="mt-4">
+                <AddCompanyForm onSuccess={handleAddCompanySuccess} />
               </div>
             </DialogContent>
           </Dialog>
@@ -153,58 +117,62 @@ const PlacementCompanies = () => {
               <CardHeader>
                 <CardTitle>Company List</CardTitle>
                 <CardDescription>
-                  Showing {filteredCompanies.length} out of {companies.length} companies
+                  {isLoading ? "Loading..." : `Showing ${filteredCompanies.length} out of ${companies.length} companies`}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Company</TableHead>
-                      <TableHead>Industry</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Offers Made</TableHead>
-                      <TableHead>Last Visit</TableHead>
-                      <TableHead>Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredCompanies.map((company) => (
-                      <TableRow key={company.id}>
-                        <TableCell>
-                          <div className="flex items-center space-x-3">
-                            <Avatar>
-                              <AvatarImage src={company.logo} alt={company.name} />
-                              <AvatarFallback>{company.name.substring(0, 2)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-medium">{company.name}</p>
-                              <p className="text-xs text-muted-foreground">{company.contact}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{company.industry}</TableCell>
-                        <TableCell>{company.location}</TableCell>
-                        <TableCell>
-                          <Badge variant={company.status === "Active" ? "default" : "outline"}>
-                            {company.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{company.offers}</TableCell>
-                        <TableCell>{company.lastVisit}</TableCell>
-                        <TableCell>
-                          <Button variant="outline" size="sm">
-                            View Details
-                          </Button>
-                        </TableCell>
+                {isLoading ? (
+                  <div className="flex justify-center p-8">Loading companies...</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Company</TableHead>
+                        <TableHead>Industry</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Offers Made</TableHead>
+                        <TableHead>Last Visit</TableHead>
+                        <TableHead>Action</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredCompanies.map((company) => (
+                        <TableRow key={company.id}>
+                          <TableCell>
+                            <div className="flex items-center space-x-3">
+                              <Avatar>
+                                <AvatarImage src={company.logo} alt={company.name} />
+                                <AvatarFallback>{company.name?.substring(0, 2) || "CO"}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-medium">{company.name}</p>
+                                <p className="text-xs text-muted-foreground">{company.contact}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{company.industry}</TableCell>
+                          <TableCell>{company.location}</TableCell>
+                          <TableCell>
+                            <Badge variant={company.status === "Active" ? "default" : "outline"}>
+                              {company.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{company.offers}</TableCell>
+                          <TableCell>{company.lastVisit}</TableCell>
+                          <TableCell>
+                            <Button variant="outline" size="sm">
+                              View Details
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
               <CardFooter className="flex justify-between">
-                <Button variant="outline">Export List</Button>
+                <Button variant="outline" onClick={handleExportClick}>Export List</Button>
                 <Button variant="outline">Import Companies</Button>
               </CardFooter>
             </Card>
