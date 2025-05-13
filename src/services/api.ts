@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Get API URL from environment or use fallback URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://placesuccess-backend-render-1.onrender.com';
 
 // Create an axios instance with base URL
 const api = axios.create({
