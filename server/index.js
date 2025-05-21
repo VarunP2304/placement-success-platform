@@ -2,6 +2,8 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const { testConnection } = require('./config/database');
+const { initializeDatabase } = require('./config/schema');
 
 // Load environment variables
 dotenv.config();
@@ -13,6 +15,16 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Initialize database
+(async () => {
+  const isConnected = await testConnection();
+  if (isConnected) {
+    await initializeDatabase();
+  } else {
+    console.log('Warning: Running with mock data since database connection failed');
+  }
+})();
 
 // Import routes
 const studentRoutes = require('./routes/student');

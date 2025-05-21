@@ -1,6 +1,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { pool } = require('../config/database');
 
 // Regular expressions for username validation
 const studentUsernameRegex = /^4SF22(CI|IS|ME|RA|CS|CD)[0-9]{3}$/;
@@ -45,20 +46,6 @@ const users = [
   }
 ];
 
-// Add a test user with the given username
-// This will help us test the login with the specific username mentioned by the user
-users.push({
-  id: 5,
-  username: '4SF22CI123',
-  password: 'password123',
-  role: 'student',
-  name: 'Test Student',
-  email: 'test.student@university.edu',
-  department: 'Computer Science',
-  regNumber: 'CS2020123',
-  batch: '2024'
-});
-
 // Function to validate username format based on role
 const validateUsername = (username, role) => {
   switch (role) {
@@ -81,7 +68,7 @@ router.get('/health', (req, res) => {
 });
 
 // Login route
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { username, password, role } = req.body;
   
   console.log('Login attempt:', { username, role });
@@ -94,44 +81,74 @@ router.post('/login', (req, res) => {
     });
   }
   
-  // Find user
-  const user = users.find(u => u.username === username && u.role === role);
-  
-  if (!user) {
-    console.log('User not found');
-    return res.status(401).json({ 
-      success: false, 
-      message: 'Invalid credentials' 
-    });
-  }
-  
-  // For demo simplicity, we're not strictly checking passwords
-  // In a real app, you'd use bcrypt to compare hashed passwords
-  if (password !== 'password123') {
-    console.log('Invalid password');
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid credentials'
-    });
-  }
-  
-  console.log('Login successful for user:', user.username);
-  
-  // Don't send password in response
-  const { password: _, ...userWithoutPassword } = user;
-  
-  res.json({
-    success: true,
-    message: 'Login successful',
-    data: {
-      user: userWithoutPassword,
-      token: 'mock-jwt-token-' + user.role // In a real app, use JWT
+  try {
+    // First try to get from database
+    let user = null;
+    const connection = await pool.getConnection();
+    
+    if (role === 'student') {
+      const [rows] = await connection.query(
+        'SELECT * FROM students WHERE username = ?', 
+        [username]
+      );
+      if (rows.length > 0) user = rows[0];
+    } else if (role === 'placement') {
+      const [rows] = await connection.query(
+        'SELECT * FROM placement_officers WHERE username = ?', 
+        [username]
+      );
+      if (rows.length > 0) user = rows[0];
     }
-  });
+    
+    connection.release();
+    
+    // If not found in DB, fall back to mock data
+    if (!user) {
+      user = users.find(u => u.username === username && u.role === role);
+    }
+    
+    if (!user) {
+      console.log('User not found');
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid credentials' 
+      });
+    }
+    
+    // For demo simplicity, we're not strictly checking passwords
+    // In a real app, you'd use bcrypt to compare hashed passwords
+    if (user.password !== 'password123' && password !== 'password123') {
+      console.log('Invalid password');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+    
+    console.log('Login successful for user:', user.username);
+    
+    // Don't send password in response
+    const { password: _, ...userWithoutPassword } = user;
+    
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        user: userWithoutPassword,
+        token: 'mock-jwt-token-' + (user.role || role) // In a real app, use JWT
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during login'
+    });
+  }
 });
 
-// Register route (for demo purposes)
-router.post('/register', (req, res) => {
+// Register route
+router.post('/register', async (req, res) => {
   const { username, password, role, name } = req.body;
   
   // Validate username format
@@ -142,34 +159,111 @@ router.post('/register', (req, res) => {
     });
   }
   
-  // Check if user already exists
-  if (users.find(u => u.username === username)) {
-    return res.status(409).json({ 
-      success: false, 
-      message: 'Username already exists' 
+  try {
+    // Check if user exists in database
+    const connection = await pool.getConnection();
+    let userExists = false;
+    
+    if (role === 'student') {
+      const [rows] = await connection.query(
+        'SELECT id FROM students WHERE username = ?', 
+        [username]
+      );
+      userExists = rows.length > 0;
+      
+      if (!userExists) {
+        await connection.query(
+          'INSERT INTO students (username, password, name) VALUES (?, ?, ?)',
+          [username, password, name]
+        );
+        
+        const [newUser] = await connection.query(
+          'SELECT * FROM students WHERE username = ?',
+          [username]
+        );
+        
+        connection.release();
+        
+        const { password: _, ...userWithoutPassword } = newUser[0];
+        
+        return res.status(201).json({
+          success: true,
+          message: 'Registration successful',
+          data: {
+            user: { ...userWithoutPassword, role }
+          }
+        });
+      }
+    } else if (role === 'placement') {
+      const [rows] = await connection.query(
+        'SELECT id FROM placement_officers WHERE username = ?', 
+        [username]
+      );
+      userExists = rows.length > 0;
+      
+      if (!userExists) {
+        await connection.query(
+          'INSERT INTO placement_officers (username, password, name) VALUES (?, ?, ?)',
+          [username, password, name]
+        );
+        
+        const [newUser] = await connection.query(
+          'SELECT * FROM placement_officers WHERE username = ?',
+          [username]
+        );
+        
+        connection.release();
+        
+        const { password: _, ...userWithoutPassword } = newUser[0];
+        
+        return res.status(201).json({
+          success: true,
+          message: 'Registration successful',
+          data: {
+            user: { ...userWithoutPassword, role }
+          }
+        });
+      }
+    } else {
+      connection.release();
+    }
+    
+    // If we reach here, either the user exists or it's not a database-backed role
+    // Check in the mock data
+    if (users.find(u => u.username === username)) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'Username already exists' 
+      });
+    }
+    
+    // Create new user in mock data
+    const newUser = {
+      id: users.length + 1,
+      username,
+      password,
+      role,
+      name
+    };
+    
+    users.push(newUser);
+    
+    const { password: _, ...userWithoutPassword } = newUser;
+    
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful',
+      data: {
+        user: userWithoutPassword
+      }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during registration'
     });
   }
-  
-  // Create new user
-  const newUser = {
-    id: users.length + 1,
-    username,
-    password,
-    role,
-    name
-  };
-  
-  users.push(newUser);
-  
-  const { password: _, ...userWithoutPassword } = newUser;
-  
-  res.status(201).json({
-    success: true,
-    message: 'Registration successful',
-    data: {
-      user: userWithoutPassword
-    }
-  });
 });
 
 // Get current user route
