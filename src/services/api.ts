@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Get API URL from environment or use fallback URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Create an axios instance with base URL
 const api = axios.create({
@@ -77,6 +77,10 @@ export const studentService = {
   getAllStudents: async () => {
     const response = await api.get('/students/analytics');
     return response.data;
+  },
+  getInterviews: async () => {
+    const response = await api.get('/students/interviews');
+    return response.data;
   }
 };
 
@@ -96,6 +100,30 @@ export const placementService = {
       message: `Chart ${chartType} downloaded as ${format}`,
       url: "data:application/pdf;base64,JVBERi0xLjMKJcTl8uXrp..."
     };
+  },
+  getDrives: async () => {
+    const response = await api.get('/placements/drives');
+    return response.data;
+  },
+  addDrive: async (driveData: any) => {
+    const response = await api.post('/placements/drives', driveData);
+    return response.data;
+  },
+  getCompanies: async () => {
+    const response = await api.get('/placements/companies');
+    return response.data;
+  },
+  addCompany: async (companyData: any) => {
+    const response = await api.post('/placements/companies', companyData);
+    return response.data;
+  },
+  updateCompany: async (id: number, companyData: any) => {
+    const response = await api.put(`/placements/companies/${id}`, companyData);
+    return response.data;
+  },
+  deleteCompany: async (id: number) => {
+    const response = await api.delete(`/placements/companies/${id}`);
+    return response.data;
   }
 };
 

@@ -1,5 +1,4 @@
-
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -19,90 +18,32 @@ import {
   ScatterChart,
   Scatter
 } from "recharts";
+import { placementService } from "@/services/api";
 
 const PlacementAnalytics = () => {
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [cgpaFilter, setCgpaFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [studentData, setStudentData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock student data with placement information
-  const studentData = [
-    {
-      id: 1,
-      usn: "4SF22CS001",
-      name: "John Doe",
-      department: "CSE",
-      cgpa: 8.5,
-      packageOffered: 12.0,
-      jobOffers: 3,
-      placed: true,
-      tenthMarks: 92,
-      twelfthMarks: 88,
-      internships: 2,
-      projects: 4,
-      workExperience: 6
-    },
-    {
-      id: 2,
-      usn: "4SF22CI002",
-      name: "Jane Smith",
-      department: "CSE AIML",
-      cgpa: 9.2,
-      packageOffered: 18.5,
-      jobOffers: 5,
-      placed: true,
-      tenthMarks: 95,
-      twelfthMarks: 92,
-      internships: 3,
-      projects: 6,
-      workExperience: 8
-    },
-    {
-      id: 3,
-      usn: "4SF22IS003",
-      name: "Bob Johnson",
-      department: "ISE",
-      cgpa: 7.8,
-      packageOffered: 8.5,
-      jobOffers: 2,
-      placed: true,
-      tenthMarks: 85,
-      twelfthMarks: 82,
-      internships: 1,
-      projects: 3,
-      workExperience: 3
-    },
-    {
-      id: 4,
-      usn: "4SF22ME004",
-      name: "Alice Brown",
-      department: "ME",
-      cgpa: 8.1,
-      packageOffered: 10.2,
-      jobOffers: 2,
-      placed: true,
-      tenthMarks: 88,
-      twelfthMarks: 86,
-      internships: 1,
-      projects: 2,
-      workExperience: 4
-    },
-    {
-      id: 5,
-      usn: "4SF22EC005",
-      name: "Charlie Wilson",
-      department: "ECE",
-      cgpa: 6.9,
-      packageOffered: 0,
-      jobOffers: 0,
-      placed: false,
-      tenthMarks: 78,
-      twelfthMarks: 75,
-      internships: 0,
-      projects: 1,
-      workExperience: 0
-    }
-  ];
+  useEffect(() => {
+    const fetchStudentData = async () => {
+      try {
+        setLoading(true);
+        const response = await placementService.getAllStudentsData();
+        if (response.success) {
+          setStudentData(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching student data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStudentData();
+  }, []);
 
   const departments = [
     { code: "all", name: "All Departments" },
@@ -138,7 +79,7 @@ const PlacementAnalytics = () => {
     // CGPA filter
     if (cgpaFilter !== "all") {
       filtered = filtered.filter(student => {
-        const cgpa = student.cgpa;
+        const cgpa = student.cgpa || 0;
         switch (cgpaFilter) {
           case "9-10": return cgpa >= 9.0 && cgpa <= 10.0;
           case "8-9": return cgpa >= 8.0 && cgpa < 9.0;
@@ -153,11 +94,11 @@ const PlacementAnalytics = () => {
 
     // Sort by CGPA
     filtered.sort((a, b) => {
-      return sortOrder === "desc" ? b.cgpa - a.cgpa : a.cgpa - b.cgpa;
+      return sortOrder === "desc" ? (b.cgpa || 0) - (a.cgpa || 0) : (a.cgpa || 0) - (b.cgpa || 0);
     });
 
     return filtered;
-  }, [selectedDepartment, cgpaFilter, sortOrder]);
+  }, [studentData, selectedDepartment, cgpaFilter, sortOrder]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -165,9 +106,9 @@ const PlacementAnalytics = () => {
     const placed = filteredData.filter(s => s.placed).length;
     const placementRate = total > 0 ? ((placed / total) * 100).toFixed(1) : 0;
     const avgPackage = filteredData
-      .filter(s => s.placed)
-      .reduce((sum, s) => sum + s.packageOffered, 0) / (placed || 1);
-    const maxPackage = Math.max(...filteredData.map(s => s.packageOffered));
+      .filter(s => s.placed && s.package_offered)
+      .reduce((sum, s) => sum + (s.package_offered || 0), 0) / (placed || 1);
+    const maxPackage = Math.max(...filteredData.map(s => s.package_offered || 0));
 
     return {
       total,
@@ -198,20 +139,20 @@ const PlacementAnalytics = () => {
       .filter(d => d.total > 0);
 
     return deptData;
-  }, []);
+  }, [studentData]);
 
   // CGPA vs Job Offers correlation data
   const cgpaJobOffersData = useMemo(() => {
     return filteredData.map(student => ({
-      cgpa: student.cgpa,
-      jobOffers: student.jobOffers,
-      name: student.name
+      cgpa: student.cgpa || 0,
+      jobOffers: student.job_offers_count || 0,
+      name: student.full_name
     }));
   }, [filteredData]);
 
   // Package distribution pie chart data
   const packageDistribution = useMemo(() => {
-    const placedStudents = filteredData.filter(s => s.placed);
+    const placedStudents = filteredData.filter(s => s.placed && s.package_offered);
     const ranges = [
       { name: "0-5 LPA", min: 0, max: 5, count: 0, color: "#8884d8" },
       { name: "5-10 LPA", min: 5, max: 10, count: 0, color: "#82ca9d" },
@@ -221,7 +162,7 @@ const PlacementAnalytics = () => {
     ];
 
     placedStudents.forEach(student => {
-      const range = ranges.find(r => student.packageOffered >= r.min && student.packageOffered < r.max);
+      const range = ranges.find(r => student.package_offered >= r.min && student.package_offered < r.max);
       if (range) range.count++;
     });
 
@@ -229,6 +170,10 @@ const PlacementAnalytics = () => {
   }, [filteredData]);
 
   const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#00ff00"];
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-64">Loading analytics...</div>;
+  }
 
   return (
     <div className="space-y-6">

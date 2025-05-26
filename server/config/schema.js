@@ -6,7 +6,7 @@ const initializeDatabase = async () => {
   try {
     const connection = await pool.getConnection();
     
-    // Create students table with new fields
+    // Create students table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS students (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -94,35 +94,51 @@ const initializeDatabase = async () => {
     await connection.query(`
       CREATE TABLE IF NOT EXISTS placement_drives (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        company_id INT,
+        company VARCHAR(100) NOT NULL,
         title VARCHAR(200) NOT NULL,
         position VARCHAR(100),
         drive_date DATE,
         registration_deadline DATE,
         location VARCHAR(100),
         eligibility TEXT,
-        package_offered DECIMAL(4,1),
-        status VARCHAR(20) DEFAULT 'Active',
+        roles TEXT,
+        package_offered VARCHAR(50),
+        status VARCHAR(20) DEFAULT 'Upcoming',
         students_registered INT DEFAULT 0,
         students_selected INT DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (company_id) REFERENCES companies(id)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     
-    // Create applications table
+    // Create student_documents table
     await connection.query(`
-      CREATE TABLE IF NOT EXISTS applications (
+      CREATE TABLE IF NOT EXISTS student_documents (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        student_id INT,
-        drive_id INT,
-        status VARCHAR(50) DEFAULT 'Applied',
-        applied_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        interview_date DATE,
-        result VARCHAR(50),
-        package_offered DECIMAL(4,1),
-        FOREIGN KEY (student_id) REFERENCES students(id),
-        FOREIGN KEY (drive_id) REFERENCES placement_drives(id)
+        student_usn VARCHAR(20) NOT NULL,
+        document_name VARCHAR(255) NOT NULL,
+        document_type ENUM('resume', 'marksheet', 'certificate', 'other') NOT NULL,
+        file_path VARCHAR(500) NOT NULL,
+        upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        status ENUM('pending', 'verified', 'rejected') DEFAULT 'pending',
+        FOREIGN KEY (student_usn) REFERENCES students(usn) ON DELETE CASCADE
+      )
+    `);
+    
+    // Create interviews table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS interviews (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        student_usn VARCHAR(20) NOT NULL,
+        company_name VARCHAR(100) NOT NULL,
+        position VARCHAR(100) NOT NULL,
+        interview_date DATETIME NOT NULL,
+        interview_type ENUM('technical', 'hr', 'group', 'aptitude') NOT NULL,
+        location VARCHAR(100),
+        status ENUM('scheduled', 'completed', 'cancelled') DEFAULT 'scheduled',
+        result ENUM('selected', 'rejected', 'pending') DEFAULT 'pending',
+        feedback TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (student_usn) REFERENCES students(usn) ON DELETE CASCADE
       )
     `);
 

@@ -1,91 +1,7 @@
+
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/database');
-
-// Mock interviews data from your frontend
-const { upcomingInterviewsData, pastInterviewsData } = require('../data/interviewData');
-
-// Mock job and internship applications
-const jobApplications = [
-  {
-    id: 1,
-    companyName: "Google",
-    position: "Software Engineer",
-    appliedDate: "2023-04-15",
-    location: "Bangalore",
-    status: "Interview Scheduled",
-    package: "₹18 LPA",
-  },
-  {
-    id: 2,
-    companyName: "Microsoft",
-    position: "Product Manager",
-    appliedDate: "2023-04-10",
-    location: "Hyderabad",
-    status: "Application Under Review",
-    package: "₹16 LPA",
-  },
-  {
-    id: 3,
-    companyName: "Amazon",
-    position: "Data Scientist",
-    appliedDate: "2023-04-05",
-    location: "Pune",
-    status: "Shortlisted",
-    package: "₹15 LPA",
-  },
-  {
-    id: 4,
-    companyName: "Apple",
-    position: "iOS Developer",
-    appliedDate: "2023-03-25",
-    location: "Bangalore",
-    status: "Rejected",
-    package: "₹17 LPA",
-  },
-  {
-    id: 5,
-    companyName: "Netflix",
-    position: "UI/UX Designer",
-    appliedDate: "2023-03-20",
-    location: "Mumbai",
-    status: "Offer Received",
-    package: "₹14 LPA",
-  }
-];
-
-const internshipApplications = [
-  {
-    id: 1,
-    companyName: "IBM",
-    position: "Software Development Intern",
-    appliedDate: "2023-04-18",
-    duration: "6 months",
-    location: "Remote",
-    status: "Application Under Review",
-    stipend: "₹25,000/month",
-  },
-  {
-    id: 2,
-    companyName: "Adobe",
-    position: "UX Research Intern",
-    appliedDate: "2023-04-12",
-    duration: "3 months",
-    location: "Noida",
-    status: "Interview Scheduled",
-    stipend: "₹20,000/month",
-  },
-  {
-    id: 3,
-    companyName: "Flipkart",
-    position: "Data Analytics Intern",
-    appliedDate: "2023-04-08",
-    duration: "4 months",
-    location: "Bangalore",
-    status: "Selected",
-    stipend: "₹18,000/month",
-  }
-];
 
 // Get student profile
 router.get('/profile/:usn?', async (req, res) => {
@@ -112,29 +28,16 @@ router.get('/profile/:usn?', async (req, res) => {
         data: rows[0]
       });
     } else {
-      // Fallback to mock data
-      res.json({
-        success: true,
-        data: {
-          usn: usn,
-          full_name: "Sample Student",
-          email: "student@university.edu",
-          phone: "+1 234 567 8901",
-          department: "CSE",
-          cgpa: 8.5
-        }
+      res.status(404).json({
+        success: false,
+        message: 'Student not found'
       });
     }
   } catch (error) {
     console.error('Database error:', error);
-    res.json({
-      success: true,
-      data: {
-        usn: usn,
-        full_name: "Sample Student",
-        email: "student@university.edu",
-        department: "CSE"
-      }
+    res.status(500).json({
+      success: false,
+      message: 'Database error'
     });
   }
 });
@@ -209,15 +112,14 @@ router.post('/profile', async (req, res) => {
     });
   } catch (error) {
     console.error('Database error:', error);
-    res.json({
-      success: true,
-      message: 'Profile saved to mock data (database unavailable)',
-      data: studentData
+    res.status(500).json({
+      success: false,
+      message: 'Database error occurred'
     });
   }
 });
 
-// Get all students for placement analytics
+// Get all students for placement analytics (placement dept only)
 router.get('/analytics', async (req, res) => {
   try {
     const connection = await pool.getConnection();
@@ -226,7 +128,8 @@ router.get('/analytics', async (req, res) => {
         usn, full_name, department, cgpa, tenth_marks, twelfth_marks,
         has_internship, internship_count, has_projects, project_count,
         has_work_experience, work_experience_months,
-        placed, package_offered, job_offers_count, company_placed
+        placed, package_offered, job_offers_count, company_placed,
+        year_of_admission
       FROM students
       ORDER BY cgpa DESC
     `);
@@ -238,95 +141,63 @@ router.get('/analytics', async (req, res) => {
     });
   } catch (error) {
     console.error('Database error:', error);
-    // Return mock data for analytics
-    res.json({
-      success: true,
-      data: [
-        {
-          usn: "4SF22CS001",
-          full_name: "John Doe",
-          department: "CSE",
-          cgpa: 8.5,
-          package_offered: 12.0,
-          job_offers_count: 3,
-          placed: true
-        }
-      ]
+    res.status(500).json({
+      success: false,
+      message: 'Database error occurred'
     });
   }
 });
 
-// Get student interviews
-router.get('/interviews', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      upcoming: upcomingInterviewsData,
-      past: pastInterviewsData
-    }
-  });
-});
-
-// Get student applications
-router.get('/applications', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      jobs: jobApplications,
-      internships: internshipApplications
-    }
-  });
-});
-
 // Get student documents
-router.get('/documents', (req, res) => {
-  res.json({
-    success: true,
-    data: [
-      {
-        id: "1",
-        name: "Resume_John_Doe.pdf",
-        type: "resume",
-        date: "Feb 10, 2024",
-        status: "verified",
-        url: "#"
-      },
-      {
-        id: "2",
-        name: "Semester5_Marksheet.pdf",
-        type: "marksheet",
-        date: "Jan 15, 2024",
-        status: "verified",
-        url: "#"
-      },
-      {
-        id: "3",
-        name: "Semester6_Marksheet.pdf",
-        type: "marksheet",
-        date: "Mar 01, 2024",
-        status: "pending",
-        url: "#"
-      },
-      {
-        id: "4",
-        name: "Google_Internship_Certificate.pdf",
-        type: "internship",
-        date: "Dec 20, 2023",
-        status: "verified",
-        url: "#"
-      }
-    ]
-  });
+router.get('/documents', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const [rows] = await connection.query(`
+      SELECT id, document_name, document_type, upload_date, status, file_path
+      FROM student_documents 
+      WHERE student_usn = ?
+      ORDER BY upload_date DESC
+    `, [req.user?.usn]); // Assuming middleware sets req.user
+    connection.release();
+
+    res.json({
+      success: true,
+      data: rows
+    });
+  } catch (error) {
+    console.error('Database error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Database error occurred'
+    });
+  }
 });
 
-// Update student profile
-router.put('/profile', (req, res) => {
-  // In a real app, this would update the database
-  res.json({
-    success: true,
-    message: "Profile updated successfully",
-    data: req.body
-  });
+// Get student interviews (removed mock data)
+router.get('/interviews', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const [rows] = await connection.query(`
+      SELECT * FROM interviews 
+      WHERE student_usn = ?
+      ORDER BY interview_date DESC
+    `, [req.user?.usn]);
+    connection.release();
+
+    res.json({
+      success: true,
+      data: {
+        upcoming: rows.filter(r => new Date(r.interview_date) > new Date()),
+        past: rows.filter(r => new Date(r.interview_date) <= new Date())
+      }
+    });
+  } catch (error) {
+    console.error('Database error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Database error occurred'
+    });
+  }
 });
 
 module.exports = router;
