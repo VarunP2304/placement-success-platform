@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { studentService } from "@/services/api";
 
 const StudentDataEntryForm = () => {
   const [formData, setFormData] = useState({
@@ -42,6 +42,8 @@ const StudentDataEntryForm = () => {
     videoResumeFile: null
   });
 
+  const [uploading, setUploading] = useState(false);
+
   const departments = [
     { code: "CS", name: "CSE", usnPrefix: "4SFYYCS" },
     { code: "CI", name: "CSE AIML", usnPrefix: "4SFYYCI" },
@@ -53,20 +55,42 @@ const StudentDataEntryForm = () => {
     { code: "BA", name: "MBA", usnPrefix: "4SFYYBA" }
   ];
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Calculate CGPA from semester marks
-    const semesterMarks = [
-      formData.sem1, formData.sem2, formData.sem3, formData.sem4,
-      formData.sem5, formData.sem6, formData.sem7, formData.sem8
-    ].filter(mark => mark !== "").map(mark => parseFloat(mark));
-    
-    const cgpa = semesterMarks.length > 0 
-      ? (semesterMarks.reduce((sum, mark) => sum + mark, 0) / semesterMarks.length).toFixed(2)
-      : "0.00";
+    setUploading(true);
 
-    console.log("Student Data Submitted:", { ...formData, cgpa });
-    toast.success("Student data submitted successfully!");
+    try {
+      // Create FormData for file upload
+      const formDataToSend = new FormData();
+      
+      // Add all text fields
+      Object.keys(formData).forEach(key => {
+        if (key !== 'resumeFile' && key !== 'videoResumeFile') {
+          formDataToSend.append(key, formData[key]);
+        }
+      });
+
+      // Add files if present
+      if (formData.resumeFile) {
+        formDataToSend.append('resumeFile', formData.resumeFile);
+      }
+      if (formData.videoResumeFile) {
+        formDataToSend.append('videoResumeFile', formData.videoResumeFile);
+      }
+
+      const response = await studentService.updateProfile(formDataToSend);
+      
+      if (response.success) {
+        toast.success("Student data and files uploaded successfully!");
+      } else {
+        toast.error(response.message || "Failed to submit data");
+      }
+    } catch (error) {
+      console.error('Submission error:', error);
+      toast.error("Failed to submit student data");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleInputChange = (field, value) => {
@@ -74,7 +98,33 @@ const StudentDataEntryForm = () => {
   };
 
   const handleFileUpload = (field, file) => {
+    // Validate file type and size
+    if (field === 'resumeFile') {
+      if (file && !['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.type)) {
+        toast.error("Resume must be PDF or DOCX format");
+        return;
+      }
+      if (file && file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast.error("Resume file size must be less than 5MB");
+        return;
+      }
+    }
+    
+    if (field === 'videoResumeFile') {
+      if (file && !['video/mp4', 'video/avi', 'video/mov'].includes(file.type)) {
+        toast.error("Video resume must be MP4, AVI, or MOV format");
+        return;
+      }
+      if (file && file.size > 50 * 1024 * 1024) { // 50MB limit
+        toast.error("Video resume file size must be less than 50MB");
+        return;
+      }
+    }
+
     setFormData(prev => ({ ...prev, [field]: file }));
+    if (file) {
+      toast.success(`${file.name} selected for upload`);
+    }
   };
 
   return (
@@ -322,30 +372,36 @@ const StudentDataEntryForm = () => {
               <h3 className="text-lg font-semibold">Document Uploads</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="resumeFile">Upload Resume (PDF)</Label>
+                  <Label htmlFor="resumeFile">Upload Resume (PDF/DOCX - Max 5MB)</Label>
                   <Input
                     id="resumeFile"
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,.docx"
                     onChange={(e) => handleFileUpload("resumeFile", e.target.files[0])}
                     required
                   />
+                  {formData.resumeFile && (
+                    <p className="text-sm text-green-600">Selected: {formData.resumeFile.name}</p>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="videoResumeFile">Upload Video Resume (Optional)</Label>
+                  <Label htmlFor="videoResumeFile">Upload Video Resume (MP4/AVI/MOV - Max 50MB)</Label>
                   <Input
                     id="videoResumeFile"
                     type="file"
                     accept=".mp4,.avi,.mov"
                     onChange={(e) => handleFileUpload("videoResumeFile", e.target.files[0])}
                   />
+                  {formData.videoResumeFile && (
+                    <p className="text-sm text-green-600">Selected: {formData.videoResumeFile.name}</p>
+                  )}
                 </div>
               </div>
             </div>
 
-            <Button type="submit" className="w-full">
-              Submit Student Data
+            <Button type="submit" className="w-full" disabled={uploading}>
+              {uploading ? "Uploading..." : "Submit Student Data"}
             </Button>
           </form>
         </CardContent>

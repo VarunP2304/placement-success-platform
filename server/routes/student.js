@@ -1,7 +1,49 @@
-
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const router = express.Router();
 const { pool } = require('../config/database');
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Allow specific file types
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'video/mp4',
+      'video/avi',
+      'video/mov',
+      'image/jpeg',
+      'image/png'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type'), false);
+    }
+  }
+});
 
 // Get student profile
 router.get('/profile/:usn?', async (req, res) => {
@@ -42,12 +84,28 @@ router.get('/profile/:usn?', async (req, res) => {
   }
 });
 
-// Create/Update student profile
-router.post('/profile', async (req, res) => {
+// Create/Update student profile with file upload
+router.post('/profile', upload.fields([
+  { name: 'resumeFile', maxCount: 1 },
+  { name: 'videoResumeFile', maxCount: 1 }
+]), async (req, res) => {
   const studentData = req.body;
+  const files = req.files;
   
   try {
     const connection = await pool.getConnection();
+    
+    // Handle file uploads
+    let resumeFilePath = null;
+    let videoResumeFilePath = null;
+    
+    if (files && files.resumeFile) {
+      resumeFilePath = files.resumeFile[0].filename;
+    }
+    
+    if (files && files.videoResumeFile) {
+      videoResumeFilePath = files.videoResumeFile[0].filename;
+    }
     
     // Check if student exists
     const [existing] = await connection.query(
@@ -57,7 +115,7 @@ router.post('/profile', async (req, res) => {
 
     if (existing.length > 0) {
       // Update existing record
-      await connection.query(`
+      const updateQuery = `
         UPDATE students SET 
           full_name = ?, email = ?, phone = ?, department = ?,
           year_of_admission = ?, permanent_address = ?,
@@ -66,10 +124,14 @@ router.post('/profile', async (req, res) => {
           sem5_marks = ?, sem6_marks = ?, sem7_marks = ?, sem8_marks = ?,
           has_internship = ?, internship_count = ?,
           has_projects = ?, project_count = ?,
-          has_work_experience = ?, work_experience_months = ?,
+          has_work_experience = ?, work_experience_months = ?
+          ${resumeFilePath ? ', resume_file = ?' : ''}
+          ${videoResumeFilePath ? ', video_resume_file = ?' : ''},
           updated_at = CURRENT_TIMESTAMP
         WHERE usn = ?
-      `, [
+      `;
+      
+      const updateParams = [
         studentData.fullName, studentData.email, studentData.phone, studentData.department,
         studentData.yearOfAdmission, studentData.permanentAddress,
         studentData.tenthMarks, studentData.twelfthMarks,
@@ -77,21 +139,29 @@ router.post('/profile', async (req, res) => {
         studentData.sem5, studentData.sem6, studentData.sem7, studentData.sem8,
         studentData.hasInternship, studentData.internshipCount || 0,
         studentData.hasProjects, studentData.projectCount || 0,
-        studentData.hasWorkExperience, studentData.workExperienceMonths || 0,
-        studentData.usn
-      ]);
+        studentData.hasWorkExperience, studentData.workExperienceMonths || 0
+      ];
+      
+      if (resumeFilePath) updateParams.push(resumeFilePath);
+      if (videoResumeFilePath) updateParams.push(videoResumeFilePath);
+      updateParams.push(studentData.usn);
+      
+      await connection.query(updateQuery, updateParams);
     } else {
       // Insert new record
-      await connection.query(`
+      const insertQuery = `
         INSERT INTO students (
           usn, full_name, email, phone, department, year_of_admission,
           permanent_address, tenth_marks, twelfth_marks,
           sem1_marks, sem2_marks, sem3_marks, sem4_marks,
           sem5_marks, sem6_marks, sem7_marks, sem8_marks,
           has_internship, internship_count, has_projects, project_count,
-          has_work_experience, work_experience_months
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
+          has_work_experience, work_experience_months,
+          resume_file, video_resume_file
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      
+      await connection.query(insertQuery, [
         studentData.usn, studentData.fullName, studentData.email, studentData.phone,
         studentData.department, studentData.yearOfAdmission, studentData.permanentAddress,
         studentData.tenthMarks, studentData.twelfthMarks,
@@ -99,7 +169,8 @@ router.post('/profile', async (req, res) => {
         studentData.sem5, studentData.sem6, studentData.sem7, studentData.sem8,
         studentData.hasInternship, studentData.internshipCount || 0,
         studentData.hasProjects, studentData.projectCount || 0,
-        studentData.hasWorkExperience, studentData.workExperienceMonths || 0
+        studentData.hasWorkExperience, studentData.workExperienceMonths || 0,
+        resumeFilePath, videoResumeFilePath
       ]);
     }
     
@@ -119,20 +190,49 @@ router.post('/profile', async (req, res) => {
   }
 });
 
-// Get all students for placement analytics (placement dept only)
-router.get('/analytics', async (req, res) => {
+// Upload document
+router.post('/documents/upload', upload.single('document'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const { documentType, documentName } = req.body;
+    const studentUsn = req.user?.usn || 'TEST_USN'; // Get from auth middleware
+    
+    const connection = await pool.getConnection();
+    await connection.query(`
+      INSERT INTO student_documents (student_usn, document_name, document_type, file_path, status)
+      VALUES (?, ?, ?, ?, 'pending')
+    `, [studentUsn, documentName, documentType, req.file.filename]);
+    connection.release();
+
+    res.json({
+      success: true,
+      message: 'Document uploaded successfully'
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Upload failed'
+    });
+  }
+});
+
+// Get student documents
+router.get('/documents', async (req, res) => {
   try {
     const connection = await pool.getConnection();
     const [rows] = await connection.query(`
-      SELECT 
-        usn, full_name, department, cgpa, tenth_marks, twelfth_marks,
-        has_internship, internship_count, has_projects, project_count,
-        has_work_experience, work_experience_months,
-        placed, package_offered, job_offers_count, company_placed,
-        year_of_admission
-      FROM students
-      ORDER BY cgpa DESC
-    `);
+      SELECT id, document_name, document_type, upload_date, status, file_path
+      FROM student_documents 
+      WHERE student_usn = ?
+      ORDER BY upload_date DESC
+    `, [req.user?.usn || 'TEST_USN']); // Get from auth middleware
     connection.release();
 
     res.json({
@@ -148,16 +248,76 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
-// Get student documents
-router.get('/documents', async (req, res) => {
+// Delete document
+router.delete('/documents/:id', async (req, res) => {
+  try {
+    const documentId = req.params.id;
+    const connection = await pool.getConnection();
+    
+    // Get file path before deleting
+    const [rows] = await connection.query(
+      'SELECT file_path FROM student_documents WHERE id = ? AND student_usn = ?',
+      [documentId, req.user?.usn || 'TEST_USN']
+    );
+    
+    if (rows.length > 0) {
+      // Delete file from filesystem
+      const filePath = path.join('uploads', rows[0].file_path);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      
+      // Delete from database
+      await connection.query(
+        'DELETE FROM student_documents WHERE id = ? AND student_usn = ?',
+        [documentId, req.user?.usn || 'TEST_USN']
+      );
+    }
+    
+    connection.release();
+
+    res.json({
+      success: true,
+      message: 'Document deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Delete failed'
+    });
+  }
+});
+
+// Serve uploaded files
+router.get('/documents/view/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, '../../uploads', filename);
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(path.resolve(filePath));
+  } else {
+    res.status(404).json({
+      success: false,
+      message: 'File not found'
+    });
+  }
+});
+
+// Get all students for placement analytics (placement dept only)
+router.get('/analytics', async (req, res) => {
   try {
     const connection = await pool.getConnection();
     const [rows] = await connection.query(`
-      SELECT id, document_name, document_type, upload_date, status, file_path
-      FROM student_documents 
-      WHERE student_usn = ?
-      ORDER BY upload_date DESC
-    `, [req.user?.usn]); // Assuming middleware sets req.user
+      SELECT 
+        usn, full_name, department, cgpa, tenth_marks, twelfth_marks,
+        has_internship, internship_count, has_projects, project_count,
+        has_work_experience, work_experience_months,
+        placed, package_offered, job_offers_count, company_placed,
+        year_of_admission
+      FROM students
+      ORDER BY cgpa DESC
+    `);
     connection.release();
 
     res.json({

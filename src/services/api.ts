@@ -7,7 +7,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 // Create an axios instance with base URL
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000,
+  timeout: 30000, // Increased timeout for file uploads
 });
 
 // Add request interceptor to add auth token
@@ -67,11 +67,26 @@ export const studentService = {
     return response.data;
   },
   updateProfile: async (profileData: any) => {
-    const response = await api.post('/students/profile', profileData);
+    // Handle both FormData and regular object
+    const headers = profileData instanceof FormData ? 
+      { 'Content-Type': 'multipart/form-data' } : 
+      { 'Content-Type': 'application/json' };
+    
+    const response = await api.post('/students/profile', profileData, { headers });
     return response.data;
   },
   getDocuments: async () => {
     const response = await api.get('/students/documents');
+    return response.data;
+  },
+  uploadDocument: async (formData: FormData) => {
+    const response = await api.post('/students/documents/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+  deleteDocument: async (documentId: string) => {
+    const response = await api.delete(`/students/documents/${documentId}`);
     return response.data;
   },
   getAllStudents: async () => {
@@ -95,10 +110,49 @@ export const placementService = {
     return response.data;
   },
   downloadChart: async (chartType: string, format: string = 'pdf') => {
+    const response = await api.get(`/placements/charts/download/${chartType}`, {
+      params: { format },
+      responseType: 'blob'
+    });
+    
+    // Create blob URL and trigger download
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${chartType}-chart.${format}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
     return {
       success: true,
-      message: `Chart ${chartType} downloaded as ${format}`,
-      url: "data:application/pdf;base64,JVBERi0xLjMKJcTl8uXrp..."
+      message: `Chart downloaded successfully`
+    };
+  },
+  downloadReport: async (reportType: string, filters: any = {}) => {
+    const response = await api.post('/placements/reports/download', {
+      reportType,
+      filters
+    }, {
+      responseType: 'blob'
+    });
+    
+    // Create blob URL and trigger download
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${reportType}-report.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    return {
+      success: true,
+      message: `Report downloaded successfully`
     };
   },
   getDrives: async () => {

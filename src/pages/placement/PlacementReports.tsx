@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/layout/Layout";
@@ -33,6 +32,13 @@ import { toast } from "sonner";
 
 const PlacementReports = () => {
   const [reportYear, setReportYear] = useState("2025");
+  const [reportFilters, setReportFilters] = useState({
+    reportType: "annual",
+    department: "all",
+    cgpaRange: "all",
+    format: "pdf"
+  });
+  const [downloading, setDownloading] = useState(false);
   
   const { data: chartData, isLoading } = useQuery({
     queryKey: ["departmentChartData"],
@@ -67,17 +73,6 @@ const PlacementReports = () => {
       value: 20,
       color: "#a4de6c",
     },
-  ];
-
-  const companyWiseData = [
-    { name: "Google", value: 12 },
-    { name: "Microsoft", value: 8 },
-    { name: "Amazon", value: 15 },
-    { name: "IBM", value: 10 },
-    { name: "TCS", value: 25 },
-    { name: "Infosys", value: 20 },
-    { name: "Wipro", value: 18 },
-    { name: "Other", value: 87 },
   ];
 
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#83a6ed", "#8dd1e1", "#82ca9d"];
@@ -122,32 +117,33 @@ const PlacementReports = () => {
   ];
 
   const handleDownloadChart = async (chartType) => {
+    setDownloading(true);
     try {
-      const response = await placementService.downloadChart(chartType, 'pdf');
-      if (response.success) {
-        toast.success(response.message);
-        
-        // In a real application, we'd use the response URL to download the file
-        // For this mock, we'll just simulate the download
-        const link = document.createElement('a');
-        link.href = response.url;
-        link.download = `${chartType}-chart.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+      await placementService.downloadChart(chartType, 'pdf');
+      toast.success(`${chartType} chart downloaded successfully`);
     } catch (error) {
       console.error("Error downloading chart:", error);
       toast.error("Failed to download chart");
+    } finally {
+      setDownloading(false);
     }
   };
 
-  const handleReportDownload = (reportId) => {
-    toast.success(`Downloading report #${reportId}`);
-  };
-
-  const handleGenerateReport = () => {
-    toast.success("Report generation initiated. You will be notified when it's ready.");
+  const handleGenerateReport = async () => {
+    setDownloading(true);
+    try {
+      await placementService.downloadReport(reportFilters.reportType, {
+        department: reportFilters.department,
+        cgpaRange: reportFilters.cgpaRange,
+        year: reportYear
+      });
+      toast.success("Report downloaded successfully");
+    } catch (error) {
+      console.error("Error generating report:", error);
+      toast.error("Failed to generate report");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -156,7 +152,7 @@ const PlacementReports = () => {
         <div>
           <h1 className="text-3xl font-bold">Placement Reports</h1>
           <p className="text-muted-foreground">
-            Generate and view detailed placement statistics and reports
+            Generate and download detailed placement statistics and reports
           </p>
         </div>
 
@@ -192,7 +188,6 @@ const PlacementReports = () => {
         <Tabs defaultValue="analytics" className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="analytics">Analytics Dashboard</TabsTrigger>
-            <TabsTrigger value="reports">Available Reports</TabsTrigger>
             <TabsTrigger value="generate">Generate Reports</TabsTrigger>
           </TabsList>
 
@@ -236,9 +231,10 @@ const PlacementReports = () => {
                     variant="outline" 
                     className="w-full"
                     onClick={() => handleDownloadChart('department-placement-rate')}
+                    disabled={downloading}
                   >
                     <Download className="mr-2 h-4 w-4" />
-                    Download Chart
+                    {downloading ? "Downloading..." : "Download Chart as PDF"}
                   </Button>
                 </CardFooter>
               </Card>
@@ -279,84 +275,40 @@ const PlacementReports = () => {
                     variant="outline" 
                     className="w-full"
                     onClick={() => handleDownloadChart('salary-distribution')}
+                    disabled={downloading}
                   >
                     <Download className="mr-2 h-4 w-4" />
-                    Download Chart
+                    {downloading ? "Downloading..." : "Download Chart as PDF"}
                   </Button>
                 </CardFooter>
               </Card>
             </div>
           </TabsContent>
 
-          <TabsContent value="reports">
-            <Card>
-              <CardHeader>
-                <CardTitle>Available Reports</CardTitle>
-                <CardDescription>
-                  Download previously generated placement reports
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {availableReports.map((report) => (
-                    <div
-                      key={report.id}
-                      className="flex flex-wrap items-center justify-between gap-4 rounded-md border p-4"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-md bg-primary/10 p-2">
-                          <FileText className="h-6 w-6 text-primary" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium">{report.title}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {report.description}
-                          </p>
-                          <div className="mt-1 flex gap-2">
-                            <span className="text-xs text-muted-foreground">
-                              Generated: {report.date}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              Type: {report.type}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              Size: {report.size}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <Button onClick={() => handleReportDownload(report.id)}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Download
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           <TabsContent value="generate">
             <Card>
               <CardHeader>
-                <CardTitle>Generate New Report</CardTitle>
+                <CardTitle>Generate Placement Report</CardTitle>
                 <CardDescription>
-                  Create customized placement reports
+                  Create customized placement reports with filters
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-6 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Report Type</label>
-                    <Select defaultValue="annual">
+                    <Select 
+                      value={reportFilters.reportType}
+                      onValueChange={(value) => setReportFilters(prev => ({...prev, reportType: value}))}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select report type" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="annual">Annual Placement Report</SelectItem>
                         <SelectItem value="department">Department-wise Analysis</SelectItem>
-                        <SelectItem value="company">Company Participation Report</SelectItem>
-                        <SelectItem value="salary">Salary Package Analysis</SelectItem>
+                        <SelectItem value="detailed">Detailed Student Report</SelectItem>
+                        <SelectItem value="analytics">Analytics Summary</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -379,42 +331,57 @@ const PlacementReports = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Department</label>
-                    <Select defaultValue="all">
+                    <label className="text-sm font-medium">Department Filter</label>
+                    <Select 
+                      value={reportFilters.department}
+                      onValueChange={(value) => setReportFilters(prev => ({...prev, department: value}))}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select department" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Departments</SelectItem>
-                        <SelectItem value="cs">Computer Science</SelectItem>
-                        <SelectItem value="ec">Electronics</SelectItem>
-                        <SelectItem value="me">Mechanical</SelectItem>
-                        <SelectItem value="cv">Civil</SelectItem>
-                        <SelectItem value="ee">Electrical</SelectItem>
+                        <SelectItem value="CSE">Computer Science</SelectItem>
+                        <SelectItem value="CSE AIML">CSE AIML</SelectItem>
+                        <SelectItem value="ISE">Information Science</SelectItem>
+                        <SelectItem value="CSE DS">CSE Data Science</SelectItem>
+                        <SelectItem value="ME">Mechanical</SelectItem>
+                        <SelectItem value="ECE">Electronics</SelectItem>
+                        <SelectItem value="MBA">MBA</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Format</label>
-                    <Select defaultValue="pdf">
+                    <label className="text-sm font-medium">CGPA Range</label>
+                    <Select 
+                      value={reportFilters.cgpaRange}
+                      onValueChange={(value) => setReportFilters(prev => ({...prev, cgpaRange: value}))}
+                    >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select format" />
+                        <SelectValue placeholder="Select CGPA range" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="pdf">PDF</SelectItem>
-                        <SelectItem value="excel">Excel</SelectItem>
-                        <SelectItem value="csv">CSV</SelectItem>
+                        <SelectItem value="all">All CGPA</SelectItem>
+                        <SelectItem value="9-10">9.0 - 10.0</SelectItem>
+                        <SelectItem value="8-9">8.0 - 8.9</SelectItem>
+                        <SelectItem value="7-8">7.0 - 7.9</SelectItem>
+                        <SelectItem value="6-7">6.0 - 6.9</SelectItem>
+                        <SelectItem value="5-6">5.0 - 5.9</SelectItem>
+                        <SelectItem value="below-5">Below 5.0</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
               </CardContent>
               <CardFooter className="flex justify-end gap-2">
-                <Button variant="outline">Preview</Button>
-                <Button onClick={handleGenerateReport}>
+                <Button 
+                  onClick={handleGenerateReport}
+                  disabled={downloading}
+                  className="min-w-[200px]"
+                >
                   <BarChart className="mr-2 h-4 w-4" />
-                  Generate Report
+                  {downloading ? "Generating..." : "Download PDF Report"}
                 </Button>
               </CardFooter>
             </Card>
