@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/form";
 import UsernameFormatHelp from "./UsernameFormatHelp";
 
-type UserType = "student" | "placement" | "employer" | "admin";
+type UserType = "student" | "placement";
 
 interface UserTypeOption {
   type: UserType;
@@ -42,26 +42,14 @@ const userTypes: UserTypeOption[] = [
   {
     type: "student",
     title: "Student",
-    description: "Access your profile, applications, and resources",
-    dashboardPath: "/student-dashboard",
+    description: "Enter your academic details and track your placement progress",
+    dashboardPath: "/student-profile",
   },
   {
     type: "placement",
     title: "Placement Department",
-    description: "Manage drives, students, and employers",
+    description: "View analytics and insights for student placement data",
     dashboardPath: "/placement-dashboard",
-  },
-  {
-    type: "employer",
-    title: "Employer",
-    description: "Post jobs, manage applications, and find talent",
-    dashboardPath: "/employer-dashboard",
-  },
-  {
-    type: "admin",
-    title: "System Administrator",
-    description: "Manage users, permissions, and system settings",
-    dashboardPath: "/admin-dashboard",
   },
 ];
 
@@ -103,8 +91,6 @@ export default function UserTypeSelector() {
 
   const checkServerConnection = async () => {
     try {
-      // For demonstration purposes, we'll simulate a server check
-      // In a real app, you might do a simple ping to your server
       await fetch("http://localhost:5000/api/health", { method: "HEAD" })
         .then(() => setServerError(false))
         .catch(() => {
@@ -123,7 +109,6 @@ export default function UserTypeSelector() {
       try {
         setIsLoading(true);
         
-        // Check if server is running first
         const isServerRunning = await checkServerConnection();
         
         if (!isServerRunning) {
@@ -138,17 +123,14 @@ export default function UserTypeSelector() {
         const response = await authService.login(values.username, values.password, selectedType);
         
         if (response.success) {
-          // Store token and user in localStorage
           localStorage.setItem('token', response.data.token);
           localStorage.setItem('user', JSON.stringify(response.data.user));
           
-          // Show success toast
           toast({
             title: "Login successful",
-            description: `Welcome back, ${response.data.user.name}`,
+            description: `Welcome back, ${response.data.user.name || response.data.user.full_name}`,
           });
           
-          // Navigate to dashboard
           const selected = userTypes.find((type) => type.type === selectedType);
           if (selected) {
             navigate(selected.dashboardPath);
@@ -185,34 +167,34 @@ export default function UserTypeSelector() {
         <p className="mt-2 text-muted-foreground">
           {showLoginForm 
             ? `Login as ${selectedType?.charAt(0).toUpperCase()}${selectedType?.slice(1)}` 
-            : "Select your role to continue to your dashboard"}
+            : "Select your role to continue"}
         </p>
       </div>
 
       {!showLoginForm ? (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 max-w-4xl mx-auto">
             {userTypes.map((type) => (
               <Card
                 key={type.type}
                 className={cn(
-                  "cursor-pointer transition-all hover:border-primary",
+                  "cursor-pointer transition-all hover:border-primary h-full",
                   selectedType === type.type && "border-primary bg-primary/5"
                 )}
                 onClick={() => setSelectedType(type.type)}
               >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-xl">
                     <div className="flex items-center justify-between">
                       <span>{type.title}</span>
                       {selectedType === type.type && (
-                        <Check className="h-5 w-5 text-primary" />
+                        <Check className="h-6 w-6 text-primary" />
                       )}
                     </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CardDescription>{type.description}</CardDescription>
+                  <CardDescription className="text-base">{type.description}</CardDescription>
                 </CardContent>
               </Card>
             ))}
@@ -253,12 +235,10 @@ export default function UserTypeSelector() {
                         <FormDescription className="flex items-center space-x-1">
                           <span>
                             {selectedType && `For demo, use valid format like ${
-                              selectedType === "student" ? "4SF22CI001" : 
-                              selectedType === "placement" ? "FA001" : 
-                              selectedType === "employer" ? "CA001" : "SA001"
+                              selectedType === "student" ? "4SF22CS001" : "FA001"
                             }`}
                           </span>
-                          <UsernameFormatHelp userType={selectedType as "student" | "placement" | "employer" | "admin"} />
+                          <UsernameFormatHelp userType={selectedType as "student" | "placement"} />
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

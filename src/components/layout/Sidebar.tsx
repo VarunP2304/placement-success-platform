@@ -11,7 +11,6 @@ import {
   Calendar,
   BarChart,
   Settings,
-  Shield,
   LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,36 +52,14 @@ export default function Sidebar({ isOpen, userType, onClose }: SidebarProps) {
   const isMobile = useIsMobile();
 
   const studentLinks = [
-    { icon: Home, label: "Dashboard", path: "/student-dashboard" },
     { icon: User, label: "My Profile", path: "/student-profile" },
-    { icon: FileText, label: "Applications", path: "/student-applications" },
-    { icon: Calendar, label: "Interviews", path: "/student-interviews" },
-    { icon: BookOpen, label: "Resources", path: "/student-resources" },
-    { icon: BarChart, label: "Analytics", path: "/student-analytics" },
+    { icon: FileText, label: "My Documents", path: "/student-documents" },
   ];
 
   const placementDeptLinks = [
     { icon: Home, label: "Dashboard", path: "/placement-dashboard" },
-    { icon: Building2, label: "Companies", path: "/placement-companies" },
-    { icon: Users, label: "Students", path: "/placement-students" },
-    { icon: Calendar, label: "Drives", path: "/placement-drives" },
+    { icon: Users, label: "Student Analytics", path: "/placement-students" },
     { icon: BarChart, label: "Reports", path: "/placement-reports" },
-  ];
-
-  const employerLinks = [
-    { icon: Home, label: "Dashboard", path: "/employer-dashboard" },
-    { icon: Building2, label: "Company Profile", path: "/employer-profile" },
-    { icon: FileText, label: "Job Postings", path: "/employer-jobs" },
-    { icon: Users, label: "Candidates", path: "/employer-candidates" },
-    { icon: BarChart, label: "Analytics", path: "/employer-analytics" },
-  ];
-
-  const adminLinks = [
-    { icon: Home, label: "Dashboard", path: "/admin-dashboard" },
-    { icon: Users, label: "User Management", path: "/admin-users" },
-    { icon: Shield, label: "Permissions", path: "/admin-permissions" },
-    { icon: FileText, label: "System Logs", path: "/admin-logs" },
-    { icon: Settings, label: "Settings", path: "/admin-settings" },
   ];
 
   let links;
@@ -92,12 +69,6 @@ export default function Sidebar({ isOpen, userType, onClose }: SidebarProps) {
       break;
     case "placement":
       links = placementDeptLinks;
-      break;
-    case "employer":
-      links = employerLinks;
-      break;
-    case "admin":
-      links = adminLinks;
       break;
     default:
       links = [];
@@ -135,15 +106,6 @@ export default function Sidebar({ isOpen, userType, onClose }: SidebarProps) {
                   active={location.pathname === link.path}
                 />
               ))}
-            </div>
-
-            <div className="mt-8 space-y-1">
-              <SidebarItem
-                icon={Settings}
-                label="Settings"
-                path="/settings"
-                active={location.pathname === "/settings"}
-              />
             </div>
           </div>
         </ScrollArea>
