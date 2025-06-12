@@ -1,3 +1,4 @@
+
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -117,14 +118,17 @@ router.post('/profile', upload.fields([
       // Update existing record
       const updateQuery = `
         UPDATE students SET 
-          full_name = ?, email = ?, phone = ?, department = ?,
-          year_of_admission = ?, permanent_address = ?,
-          tenth_marks = ?, twelfth_marks = ?,
-          sem1_marks = ?, sem2_marks = ?, sem3_marks = ?, sem4_marks = ?,
-          sem5_marks = ?, sem6_marks = ?, sem7_marks = ?, sem8_marks = ?,
+          name = ?, branch = ?, company_names = ?, number_of_offers = ?,
+          email = ?, contact_number = ?, year_of_passing = ?,
+          be_cgpa = ?, tenth_percentage = ?, twelfth_percentage = ?,
+          permanent_address = ?,
           has_internship = ?, internship_count = ?,
           has_projects = ?, project_count = ?,
-          has_work_experience = ?, work_experience_months = ?
+          has_work_experience = ?, work_experience_months = ?,
+          sem1_marks = ?, sem2_marks = ?, sem3_marks = ?, sem4_marks = ?,
+          sem5_marks = ?, sem6_marks = ?, sem7_marks = ?, sem8_marks = ?,
+          diploma_sem1 = ?, diploma_sem2 = ?, diploma_sem3 = ?,
+          diploma_sem4 = ?, diploma_sem5 = ?, diploma_sem6 = ?
           ${resumeFilePath ? ', resume_file = ?' : ''}
           ${videoResumeFilePath ? ', video_resume_file = ?' : ''},
           updated_at = CURRENT_TIMESTAMP
@@ -132,14 +136,17 @@ router.post('/profile', upload.fields([
       `;
       
       const updateParams = [
-        studentData.fullName, studentData.email, studentData.phone, studentData.department,
-        studentData.yearOfAdmission, studentData.permanentAddress,
-        studentData.tenthMarks, studentData.twelfthMarks,
-        studentData.sem1, studentData.sem2, studentData.sem3, studentData.sem4,
-        studentData.sem5, studentData.sem6, studentData.sem7, studentData.sem8,
+        studentData.name, studentData.branch, studentData.companyNames, studentData.numberOfOffers || 0,
+        studentData.email, studentData.contactNumber, studentData.yearOfPassing,
+        studentData.beCgpa, studentData.tenthPercentage, studentData.twelfthPercentage,
+        studentData.permanentAddress,
         studentData.hasInternship, studentData.internshipCount || 0,
         studentData.hasProjects, studentData.projectCount || 0,
-        studentData.hasWorkExperience, studentData.workExperienceMonths || 0
+        studentData.hasWorkExperience, studentData.workExperienceMonths || 0,
+        studentData.sem1, studentData.sem2, studentData.sem3, studentData.sem4,
+        studentData.sem5, studentData.sem6, studentData.sem7, studentData.sem8,
+        studentData.diplomaSem1, studentData.diplomaSem2, studentData.diplomaSem3,
+        studentData.diplomaSem4, studentData.diplomaSem5, studentData.diplomaSem6
       ];
       
       if (resumeFilePath) updateParams.push(resumeFilePath);
@@ -151,25 +158,32 @@ router.post('/profile', upload.fields([
       // Insert new record
       const insertQuery = `
         INSERT INTO students (
-          usn, full_name, email, phone, department, year_of_admission,
-          permanent_address, tenth_marks, twelfth_marks,
-          sem1_marks, sem2_marks, sem3_marks, sem4_marks,
-          sem5_marks, sem6_marks, sem7_marks, sem8_marks,
+          usn, name, branch, company_names, number_of_offers,
+          email, contact_number, year_of_passing,
+          be_cgpa, tenth_percentage, twelfth_percentage,
+          permanent_address,
           has_internship, internship_count, has_projects, project_count,
           has_work_experience, work_experience_months,
+          sem1_marks, sem2_marks, sem3_marks, sem4_marks,
+          sem5_marks, sem6_marks, sem7_marks, sem8_marks,
+          diploma_sem1, diploma_sem2, diploma_sem3,
+          diploma_sem4, diploma_sem5, diploma_sem6,
           resume_file, video_resume_file
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
       await connection.query(insertQuery, [
-        studentData.usn, studentData.fullName, studentData.email, studentData.phone,
-        studentData.department, studentData.yearOfAdmission, studentData.permanentAddress,
-        studentData.tenthMarks, studentData.twelfthMarks,
-        studentData.sem1, studentData.sem2, studentData.sem3, studentData.sem4,
-        studentData.sem5, studentData.sem6, studentData.sem7, studentData.sem8,
+        studentData.usn, studentData.name, studentData.branch, studentData.companyNames, studentData.numberOfOffers || 0,
+        studentData.email, studentData.contactNumber, studentData.yearOfPassing,
+        studentData.beCgpa, studentData.tenthPercentage, studentData.twelfthPercentage,
+        studentData.permanentAddress,
         studentData.hasInternship, studentData.internshipCount || 0,
         studentData.hasProjects, studentData.projectCount || 0,
         studentData.hasWorkExperience, studentData.workExperienceMonths || 0,
+        studentData.sem1, studentData.sem2, studentData.sem3, studentData.sem4,
+        studentData.sem5, studentData.sem6, studentData.sem7, studentData.sem8,
+        studentData.diplomaSem1, studentData.diplomaSem2, studentData.diplomaSem3,
+        studentData.diplomaSem4, studentData.diplomaSem5, studentData.diplomaSem6,
         resumeFilePath, videoResumeFilePath
       ]);
     }
@@ -310,13 +324,19 @@ router.get('/analytics', async (req, res) => {
     const connection = await pool.getConnection();
     const [rows] = await connection.query(`
       SELECT 
-        usn, full_name, department, cgpa, tenth_marks, twelfth_marks,
+        usn, name, branch, company_names, number_of_offers,
+        email, contact_number, year_of_passing, year_of_admission,
+        be_cgpa, tenth_percentage, twelfth_percentage,
         has_internship, internship_count, has_projects, project_count,
         has_work_experience, work_experience_months,
-        placed, package_offered, job_offers_count, company_placed,
-        year_of_admission
+        sem1_marks, sem2_marks, sem3_marks, sem4_marks,
+        sem5_marks, sem6_marks, sem7_marks, sem8_marks,
+        diploma_sem1, diploma_sem2, diploma_sem3,
+        diploma_sem4, diploma_sem5, diploma_sem6,
+        resume_file, video_resume_file,
+        created_at, updated_at
       FROM students
-      ORDER BY cgpa DESC
+      ORDER BY be_cgpa DESC
     `);
     connection.release();
 

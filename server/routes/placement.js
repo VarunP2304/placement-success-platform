@@ -210,12 +210,14 @@ router.get('/charts/department', async (req, res) => {
     const connection = await pool.getConnection();
     const [rows] = await connection.query(`
       SELECT 
-        department as name,
+        branch as name,
         COUNT(*) as total,
-        SUM(CASE WHEN placed = 1 THEN 1 ELSE 0 END) as placed,
-        ROUND((SUM(CASE WHEN placed = 1 THEN 1 ELSE 0 END) / COUNT(*)) * 100, 1) as placementRate
+        SUM(CASE WHEN number_of_offers > 0 THEN 1 ELSE 0 END) as placed,
+        ROUND((SUM(CASE WHEN number_of_offers > 0 THEN 1 ELSE 0 END) / COUNT(*)) * 100, 1) as placementRate,
+        ROUND(AVG(be_cgpa), 2) as avgCGPA,
+        ROUND(AVG(number_of_offers), 2) as avgOffers
       FROM students 
-      GROUP BY department
+      GROUP BY branch
       ORDER BY placementRate DESC
     `);
     connection.release();
@@ -226,6 +228,35 @@ router.get('/charts/department', async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting chart data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Database error occurred'
+    });
+  }
+});
+
+// Get CGPA vs Offers correlation data
+router.get('/charts/cgpa-offers-correlation', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const [rows] = await connection.query(`
+      SELECT 
+        ROUND(be_cgpa, 1) as cgpa,
+        number_of_offers as offers,
+        name,
+        branch
+      FROM students 
+      WHERE be_cgpa IS NOT NULL AND number_of_offers IS NOT NULL
+      ORDER BY be_cgpa ASC
+    `);
+    connection.release();
+    
+    res.json({
+      success: true,
+      data: rows
+    });
+  } catch (error) {
+    console.error('Error getting correlation data:', error);
     res.status(500).json({
       success: false,
       message: 'Database error occurred'
@@ -244,46 +275,35 @@ router.get('/charts/download/:chartType', async (req, res) => {
     let title = '';
     
     switch (chartType) {
-      case 'department-placement-rate':
-        const [deptRows] = await connection.query(`
+      case 'branch-placement-rate':
+        const [branchRows] = await connection.query(`
           SELECT 
-            department as name,
+            branch as name,
             COUNT(*) as total,
-            SUM(CASE WHEN placed = 1 THEN 1 ELSE 0 END) as placed,
-            ROUND((SUM(CASE WHEN placed = 1 THEN 1 ELSE 0 END) / COUNT(*)) * 100, 1) as placementRate
+            SUM(CASE WHEN number_of_offers > 0 THEN 1 ELSE 0 END) as placed,
+            ROUND((SUM(CASE WHEN number_of_offers > 0 THEN 1 ELSE 0 END) / COUNT(*)) * 100, 1) as placementRate,
+            ROUND(AVG(be_cgpa), 2) as avgCGPA
           FROM students 
-          GROUP BY department
+          GROUP BY branch
           ORDER BY placementRate DESC
         `);
-        data = deptRows;
-        title = 'Department-wise Placement Rate';
+        data = branchRows;
+        title = 'Branch-wise Placement Rate';
         break;
         
-      case 'salary-distribution':
-        const [salaryRows] = await connection.query(`
+      case 'cgpa-offers-correlation':
+        const [correlationRows] = await connection.query(`
           SELECT 
-            CASE 
-              WHEN package_offered < 5 THEN '0-5 LPA'
-              WHEN package_offered < 10 THEN '5-10 LPA'
-              WHEN package_offered < 15 THEN '10-15 LPA'
-              WHEN package_offered < 20 THEN '15-20 LPA'
-              ELSE '20+ LPA'
-            END as range,
-            COUNT(*) as count
+            ROUND(be_cgpa, 1) as cgpa,
+            AVG(number_of_offers) as avgOffers,
+            COUNT(*) as studentCount
           FROM students 
-          WHERE placed = 1 AND package_offered > 0
-          GROUP BY 
-            CASE 
-              WHEN package_offered < 5 THEN '0-5 LPA'
-              WHEN package_offered < 10 THEN '5-10 LPA'
-              WHEN package_offered < 15 THEN '10-15 LPA'
-              WHEN package_offered < 20 THEN '15-20 LPA'
-              ELSE '20+ LPA'
-            END
-          ORDER BY MIN(package_offered)
+          WHERE be_cgpa IS NOT NULL AND number_of_offers IS NOT NULL
+          GROUP BY ROUND(be_cgpa, 1)
+          ORDER BY cgpa ASC
         `);
-        data = salaryRows;
-        title = 'Salary Package Distribution';
+        data = correlationRows;
+        title = 'CGPA vs Number of Offers Correlation';
         break;
         
       default:
@@ -311,28 +331,32 @@ router.get('/charts/download/:chartType', async (req, res) => {
     let y = 150;
     doc.fontSize(12);
     
-    if (chartType === 'department-placement-rate') {
-      doc.text('Department', 50, y);
-      doc.text('Total Students', 200, y);
-      doc.text('Placed Students', 320, y);
-      doc.text('Placement Rate', 450, y);
+    if (chartType === 'branch-placement-rate') {
+      doc.text('Branch', 50, y);
+      doc.text('Total Students', 150, y);
+      doc.text('Placed Students', 250, y);
+      doc.text('Placement Rate', 350, y);
+      doc.text('Avg CGPA', 450, y);
       y += 20;
       
       data.forEach((row) => {
         doc.text(row.name, 50, y);
-        doc.text(row.total.toString(), 200, y);
-        doc.text(row.placed.toString(), 320, y);
-        doc.text(`${row.placementRate}%`, 450, y);
+        doc.text(row.total.toString(), 150, y);
+        doc.text(row.placed.toString(), 250, y);
+        doc.text(`${row.placementRate}%`, 350, y);
+        doc.text(row.avgCGPA?.toString() || 'N/A', 450, y);
         y += 20;
       });
-    } else {
-      doc.text('Salary Range', 50, y);
-      doc.text('Number of Students', 200, y);
+    } else if (chartType === 'cgpa-offers-correlation') {
+      doc.text('CGPA', 50, y);
+      doc.text('Average Offers', 200, y);
+      doc.text('Student Count', 350, y);
       y += 20;
       
       data.forEach((row) => {
-        doc.text(row.range, 50, y);
-        doc.text(row.count.toString(), 200, y);
+        doc.text(row.cgpa.toString(), 50, y);
+        doc.text(row.avgOffers.toFixed(2), 200, y);
+        doc.text(row.studentCount.toString(), 350, y);
         y += 20;
       });
     }
@@ -358,11 +382,11 @@ router.post('/reports/download', async (req, res) => {
     // Base query for student data
     let query = `
       SELECT 
-        usn, full_name, department, cgpa, tenth_marks, twelfth_marks,
+        usn, name, branch, company_names, number_of_offers,
+        email, contact_number, year_of_passing, year_of_admission,
+        be_cgpa, tenth_percentage, twelfth_percentage,
         has_internship, internship_count, has_projects, project_count,
-        has_work_experience, work_experience_months,
-        placed, package_offered, job_offers_count, company_placed,
-        year_of_admission
+        has_work_experience, work_experience_months
       FROM students
       WHERE 1=1
     `;
@@ -371,34 +395,34 @@ router.post('/reports/download', async (req, res) => {
     
     // Apply filters
     if (filters.department && filters.department !== 'all') {
-      query += ' AND department = ?';
+      query += ' AND branch = ?';
       queryParams.push(filters.department);
     }
     
     if (filters.cgpaRange && filters.cgpaRange !== 'all') {
       switch (filters.cgpaRange) {
         case '9-10':
-          query += ' AND cgpa >= 9.0 AND cgpa <= 10.0';
+          query += ' AND be_cgpa >= 9.0 AND be_cgpa <= 10.0';
           break;
         case '8-9':
-          query += ' AND cgpa >= 8.0 AND cgpa < 9.0';
+          query += ' AND be_cgpa >= 8.0 AND be_cgpa < 9.0';
           break;
         case '7-8':
-          query += ' AND cgpa >= 7.0 AND cgpa < 8.0';
+          query += ' AND be_cgpa >= 7.0 AND be_cgpa < 8.0';
           break;
         case '6-7':
-          query += ' AND cgpa >= 6.0 AND cgpa < 7.0';
+          query += ' AND be_cgpa >= 6.0 AND be_cgpa < 7.0';
           break;
         case '5-6':
-          query += ' AND cgpa >= 5.0 AND cgpa < 6.0';
+          query += ' AND be_cgpa >= 5.0 AND be_cgpa < 6.0';
           break;
         case 'below-5':
-          query += ' AND cgpa < 5.0';
+          query += ' AND be_cgpa < 5.0';
           break;
       }
     }
     
-    query += ' ORDER BY cgpa DESC';
+    query += ' ORDER BY be_cgpa DESC';
     
     const [rows] = await connection.query(query, queryParams);
     connection.release();
@@ -420,18 +444,18 @@ router.post('/reports/download', async (req, res) => {
     
     // Add summary statistics
     const totalStudents = rows.length;
-    const placedStudents = rows.filter(r => r.placed).length;
+    const placedStudents = rows.filter(r => r.number_of_offers > 0).length;
     const placementRate = totalStudents > 0 ? ((placedStudents / totalStudents) * 100).toFixed(1) : 0;
-    const avgPackage = rows
-      .filter(r => r.placed && r.package_offered)
-      .reduce((sum, r) => sum + (r.package_offered || 0), 0) / (placedStudents || 1);
+    const avgCGPA = rows
+      .filter(r => r.be_cgpa)
+      .reduce((sum, r) => sum + (r.be_cgpa || 0), 0) / (rows.filter(r => r.be_cgpa).length || 1);
     
     doc.fontSize(14).text('Summary Statistics:', { underline: true });
     doc.fontSize(12);
     doc.text(`Total Students: ${totalStudents}`);
-    doc.text(`Placed Students: ${placedStudents}`);
+    doc.text(`Students with Offers: ${placedStudents}`);
     doc.text(`Placement Rate: ${placementRate}%`);
-    doc.text(`Average Package: ₹${avgPackage.toFixed(1)} LPA`);
+    doc.text(`Average CGPA: ${avgCGPA.toFixed(2)}`);
     doc.moveDown(2);
     
     // Add student data table
@@ -442,14 +466,13 @@ router.post('/reports/download', async (req, res) => {
     const pageHeight = doc.page.height - doc.page.margins.bottom;
     
     // Table headers
-    doc.fontSize(10);
-    doc.text('USN', 30, y, { width: 80 });
-    doc.text('Name', 120, y, { width: 100 });
-    doc.text('Dept', 230, y, { width: 40 });
-    doc.text('CGPA', 280, y, { width: 40 });
-    doc.text('Placed', 330, y, { width: 40 });
-    doc.text('Package', 380, y, { width: 60 });
-    doc.text('Company', 450, y, { width: 100 });
+    doc.fontSize(9);
+    doc.text('USN', 30, y, { width: 70 });
+    doc.text('Name', 110, y, { width: 80 });
+    doc.text('Branch', 200, y, { width: 50 });
+    doc.text('CGPA', 260, y, { width: 40 });
+    doc.text('Offers', 310, y, { width: 40 });
+    doc.text('Companies', 360, y, { width: 150 });
     
     y += 15;
     
@@ -460,13 +483,12 @@ router.post('/reports/download', async (req, res) => {
         y = 50;
       }
       
-      doc.text(student.usn || '', 30, y, { width: 80 });
-      doc.text(student.full_name || '', 120, y, { width: 100 });
-      doc.text(student.department || '', 230, y, { width: 40 });
-      doc.text((student.cgpa || 0).toFixed(2), 280, y, { width: 40 });
-      doc.text(student.placed ? 'Yes' : 'No', 330, y, { width: 40 });
-      doc.text(student.placed ? `₹${student.package_offered || 0}L` : '-', 380, y, { width: 60 });
-      doc.text(student.company_placed || '-', 450, y, { width: 100 });
+      doc.text(student.usn || '', 30, y, { width: 70 });
+      doc.text(student.name || '', 110, y, { width: 80 });
+      doc.text(student.branch || '', 200, y, { width: 50 });
+      doc.text((student.be_cgpa || 0).toFixed(2), 260, y, { width: 40 });
+      doc.text((student.number_of_offers || 0).toString(), 310, y, { width: 40 });
+      doc.text(student.company_names || '-', 360, y, { width: 150 });
       
       y += 15;
     });

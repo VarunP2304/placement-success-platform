@@ -6,21 +6,35 @@ const initializeDatabase = async () => {
   try {
     const connection = await pool.getConnection();
     
-    // Create students table
+    // Create students table with your specific requirements
     await connection.query(`
       CREATE TABLE IF NOT EXISTS students (
         id INT AUTO_INCREMENT PRIMARY KEY,
         usn VARCHAR(20) UNIQUE NOT NULL,
-        year_of_admission VARCHAR(4) NOT NULL,
-        department VARCHAR(20) NOT NULL,
-        full_name VARCHAR(100) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        branch VARCHAR(20) NOT NULL,
+        company_names TEXT,
+        number_of_offers INT DEFAULT 0,
         email VARCHAR(100) UNIQUE NOT NULL,
-        phone VARCHAR(20) NOT NULL,
-        permanent_address TEXT NOT NULL,
+        contact_number VARCHAR(20) NOT NULL,
+        year_of_passing VARCHAR(4) NOT NULL,
+        year_of_admission VARCHAR(2) GENERATED ALWAYS AS (
+          LPAD(CAST(year_of_passing AS UNSIGNED) - 4, 2, '0')
+        ) STORED,
+        be_cgpa DECIMAL(4,2),
+        tenth_percentage DECIMAL(5,2),
+        twelfth_percentage DECIMAL(5,2),
         
-        -- Academic Details
-        tenth_marks DECIMAL(5,2),
-        twelfth_marks DECIMAL(5,2),
+        -- Additional Details
+        permanent_address TEXT,
+        has_internship ENUM('yes', 'no') DEFAULT 'no',
+        internship_count INT DEFAULT 0,
+        has_projects ENUM('yes', 'no') DEFAULT 'no',
+        project_count INT DEFAULT 0,
+        has_work_experience ENUM('yes', 'no') DEFAULT 'no',
+        work_experience_months INT DEFAULT 0,
+        
+        -- Semester Marks
         sem1_marks DECIMAL(4,2),
         sem2_marks DECIMAL(4,2),
         sem3_marks DECIMAL(4,2),
@@ -29,28 +43,18 @@ const initializeDatabase = async () => {
         sem6_marks DECIMAL(4,2),
         sem7_marks DECIMAL(4,2),
         sem8_marks DECIMAL(4,2),
-        cgpa DECIMAL(4,2) GENERATED ALWAYS AS (
-          (IFNULL(sem1_marks, 0) + IFNULL(sem2_marks, 0) + IFNULL(sem3_marks, 0) + IFNULL(sem4_marks, 0) + 
-           IFNULL(sem5_marks, 0) + IFNULL(sem6_marks, 0) + IFNULL(sem7_marks, 0) + IFNULL(sem8_marks, 0)) / 8
-        ) STORED,
         
-        -- Experience Details
-        has_internship ENUM('yes', 'no') DEFAULT 'no',
-        internship_count INT DEFAULT 0,
-        has_projects ENUM('yes', 'no') DEFAULT 'no',
-        project_count INT DEFAULT 0,
-        has_work_experience ENUM('yes', 'no') DEFAULT 'no',
-        work_experience_months INT DEFAULT 0,
+        -- Diploma marks (if applicable)
+        diploma_sem1 DECIMAL(4,2),
+        diploma_sem2 DECIMAL(4,2),
+        diploma_sem3 DECIMAL(4,2),
+        diploma_sem4 DECIMAL(4,2),
+        diploma_sem5 DECIMAL(4,2),
+        diploma_sem6 DECIMAL(4,2),
         
         -- File uploads
         resume_file VARCHAR(255),
         video_resume_file VARCHAR(255),
-        
-        -- Placement Details
-        placed BOOLEAN DEFAULT FALSE,
-        package_offered DECIMAL(4,1) DEFAULT 0,
-        job_offers_count INT DEFAULT 0,
-        company_placed VARCHAR(100),
         
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
