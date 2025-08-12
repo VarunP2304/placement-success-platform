@@ -24,7 +24,7 @@ const PlacementAnalytics = () => {
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [cgpaFilter, setCgpaFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
-  const [studentData, setStudentData] = useState([]);
+  const [studentData, setStudentData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -73,13 +73,13 @@ const PlacementAnalytics = () => {
 
     // Department filter
     if (selectedDepartment !== "all") {
-      filtered = filtered.filter(student => student.department === selectedDepartment);
+      filtered = filtered.filter((student: any) => student.branch === selectedDepartment);
     }
 
     // CGPA filter
     if (cgpaFilter !== "all") {
-      filtered = filtered.filter(student => {
-        const cgpa = student.cgpa || 0;
+      filtered = filtered.filter((student: any) => {
+        const cgpa = student.be_cgpa || 0;
         switch (cgpaFilter) {
           case "9-10": return cgpa >= 9.0 && cgpa <= 10.0;
           case "8-9": return cgpa >= 8.0 && cgpa < 9.0;
@@ -93,8 +93,8 @@ const PlacementAnalytics = () => {
     }
 
     // Sort by CGPA
-    filtered.sort((a, b) => {
-      return sortOrder === "desc" ? (b.cgpa || 0) - (a.cgpa || 0) : (a.cgpa || 0) - (b.cgpa || 0);
+    filtered.sort((a: any, b: any) => {
+      return sortOrder === "desc" ? (b.be_cgpa || 0) - (a.be_cgpa || 0) : (a.be_cgpa || 0) - (b.be_cgpa || 0);
     });
 
     return filtered;
@@ -103,19 +103,18 @@ const PlacementAnalytics = () => {
   // Calculate statistics
   const stats = useMemo(() => {
     const total = filteredData.length;
-    const placed = filteredData.filter(s => s.placed).length;
+    const placed = filteredData.filter((s: any) => (s.number_of_offers || 0) > 0).length;
     const placementRate = total > 0 ? ((placed / total) * 100).toFixed(1) : 0;
-    const avgPackage = filteredData
-      .filter(s => s.placed && s.package_offered)
-      .reduce((sum, s) => sum + (s.package_offered || 0), 0) / (placed || 1);
-    const maxPackage = Math.max(...filteredData.map(s => s.package_offered || 0));
+    const avgOffers = filteredData
+      .reduce((sum: number, s: any) => sum + (s.number_of_offers || 0), 0) / (total || 1);
+    const maxOffers = Math.max(...filteredData.map((s: any) => s.number_of_offers || 0));
 
     return {
       total,
       placed,
       placementRate,
-      avgPackage: avgPackage.toFixed(1),
-      maxPackage
+      avgOffers: avgOffers.toFixed(1),
+      maxOffers
     };
   }, [filteredData]);
 
@@ -124,8 +123,8 @@ const PlacementAnalytics = () => {
     const deptData = departments
       .filter(d => d.code !== "all")
       .map(dept => {
-        const deptStudents = studentData.filter(s => s.department === dept.code);
-        const placed = deptStudents.filter(s => s.placed).length;
+        const deptStudents = studentData.filter((s: any) => s.branch === dept.code);
+        const placed = deptStudents.filter((s: any) => (s.number_of_offers || 0) > 0).length;
         const total = deptStudents.length;
         const placementRate = total > 0 ? (placed / total) * 100 : 0;
         
@@ -143,26 +142,25 @@ const PlacementAnalytics = () => {
 
   // CGPA vs Job Offers correlation data
   const cgpaJobOffersData = useMemo(() => {
-    return filteredData.map(student => ({
-      cgpa: student.cgpa || 0,
-      jobOffers: student.job_offers_count || 0,
-      name: student.full_name
+    return filteredData.map((student: any) => ({
+      cgpa: student.be_cgpa || 0,
+      jobOffers: student.number_of_offers || 0,
+      name: student.name
     }));
   }, [filteredData]);
 
-  // Package distribution pie chart data
+  // Package distribution pie chart data (using offers buckets)
   const packageDistribution = useMemo(() => {
-    const placedStudents = filteredData.filter(s => s.placed && s.package_offered);
+    const placedStudents = filteredData.filter((s: any) => (s.number_of_offers || 0) > 0);
     const ranges = [
-      { name: "0-5 LPA", min: 0, max: 5, count: 0, color: "#8884d8" },
-      { name: "5-10 LPA", min: 5, max: 10, count: 0, color: "#82ca9d" },
-      { name: "10-15 LPA", min: 10, max: 15, count: 0, color: "#ffc658" },
-      { name: "15-20 LPA", min: 15, max: 20, count: 0, color: "#ff7300" },
-      { name: "20+ LPA", min: 20, max: Infinity, count: 0, color: "#00ff00" }
+      { name: "0-1 Offers", min: 0, max: 1.5, count: 0, color: "#8884d8" },
+      { name: "2-3 Offers", min: 1.5, max: 3.5, count: 0, color: "#82ca9d" },
+      { name: "4-5 Offers", min: 3.5, max: 5.5, count: 0, color: "#ffc658" },
+      { name: "6+ Offers", min: 5.5, max: Infinity, count: 0, color: "#ff7300" }
     ];
 
-    placedStudents.forEach(student => {
-      const range = ranges.find(r => student.package_offered >= r.min && student.package_offered < r.max);
+    placedStudents.forEach((student: any) => {
+      const range = ranges.find(r => (student.number_of_offers || 0) >= r.min && (student.number_of_offers || 0) < r.max);
       if (range) range.count++;
     });
 
@@ -279,8 +277,8 @@ const PlacementAnalytics = () => {
         <Card>
           <CardContent className="p-6">
             <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">₹{stats.avgPackage}L</div>
-              <div className="text-sm text-muted-foreground">Avg Package</div>
+              <div className="text-2xl font-bold text-orange-600">{stats.avgOffers}</div>
+              <div className="text-sm text-muted-foreground">Avg Offers</div>
             </div>
           </CardContent>
         </Card>
@@ -366,20 +364,20 @@ const PlacementAnalytics = () => {
           <CardContent>
             <div className="max-h-80 overflow-y-auto">
               <div className="space-y-2">
-                {filteredData.map(student => (
-                  <div key={student.id} className="flex justify-between items-center p-2 border rounded">
+                {filteredData.map((student: any) => (
+                  <div key={student.usn} className="flex justify-between items-center p-2 border rounded">
                     <div>
                       <div className="font-medium">{student.name}</div>
                       <div className="text-sm text-muted-foreground">
-                        {student.usn} | {student.department} | CGPA: {student.cgpa}
+                        {student.usn} | {student.branch} | CGPA: {student.be_cgpa}
                       </div>
                     </div>
                     <div className="text-right">
-                      <Badge variant={student.placed ? "default" : "destructive"}>
-                        {student.placed ? `₹${student.packageOffered}L` : "Not Placed"}
+                      <Badge variant={(student.number_of_offers || 0) > 0 ? "default" : "destructive"}>
+                        {(student.number_of_offers || 0) > 0 ? `${student.number_of_offers} offers` : "Not Placed"}
                       </Badge>
                       <div className="text-sm text-muted-foreground">
-                        {student.jobOffers} offers
+                        Companies: {student.company_names || '-'}
                       </div>
                     </div>
                   </div>

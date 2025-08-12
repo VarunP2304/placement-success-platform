@@ -23,9 +23,8 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
+  ScatterChart,
+  Scatter
 } from "recharts";
 import { placementService } from "@/services/api";
 import { toast } from "sonner";
@@ -39,43 +38,24 @@ const PlacementReports = () => {
     format: "pdf"
   });
   const [downloading, setDownloading] = useState(false);
+  const [branchSort, setBranchSort] = useState<"asc" | "desc">("desc");
   
   const { data: chartData, isLoading } = useQuery({
     queryKey: ["departmentChartData"],
     queryFn: placementService.getDepartmentChartData
   });
 
-  const departmentData = chartData?.data || [];
+  const { data: correlation, isLoading: loadingCorr } = useQuery({
+    queryKey: ["cgpaOffersCorrelation"],
+    queryFn: placementService.getCgpaOffersCorrelation
+  });
 
-  const packageData = [
-    {
-      name: "< 5 LPA",
-      value: 35,
-      color: "#8884d8",
-    },
-    {
-      name: "5-10 LPA",
-      value: 65,
-      color: "#83a6ed",
-    },
-    {
-      name: "10-15 LPA",
-      value: 45,
-      color: "#8dd1e1",
-    },
-    {
-      name: "15-20 LPA",
-      value: 30,
-      color: "#82ca9d",
-    },
-    {
-      name: "20+ LPA",
-      value: 20,
-      color: "#a4de6c",
-    },
-  ];
+  const departmentDataRaw = chartData?.data || [];
+  const departmentData = [...departmentDataRaw].sort((a, b) =>
+    branchSort === "asc" ? a.placementRate - b.placementRate : b.placementRate - a.placementRate
+  );
 
-  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#83a6ed", "#8dd1e1", "#82ca9d"];
+  const correlationData = correlation?.data || [];
   
   const availableReports = [
     {
@@ -195,10 +175,25 @@ const PlacementReports = () => {
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle>Department-wise Placement Rate</CardTitle>
-                  <CardDescription>
-                    Comparison of placement statistics across departments
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Department-wise Placement Rate</CardTitle>
+                      <CardDescription>
+                        Comparison of placement statistics across departments
+                      </CardDescription>
+                    </div>
+                    <div className="w-40">
+                      <Select value={branchSort} onValueChange={(v) => setBranchSort(v as any)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sort" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="desc">High → Low</SelectItem>
+                          <SelectItem value="asc">Low → High</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
@@ -230,7 +225,7 @@ const PlacementReports = () => {
                   <Button 
                     variant="outline" 
                     className="w-full"
-                    onClick={() => handleDownloadChart('department-placement-rate')}
+                    onClick={() => handleDownloadChart('branch-placement-rate')}
                     disabled={downloading}
                   >
                     <Download className="mr-2 h-4 w-4" />
@@ -241,40 +236,34 @@ const PlacementReports = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Salary Package Distribution</CardTitle>
+                  <CardTitle>CGPA vs Number of Offers</CardTitle>
                   <CardDescription>
-                    Breakdown of salary packages offered to students
+                    Correlation between student CGPA and number of offers
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={packageData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                          label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        >
-                          {packageData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {loadingCorr ? (
+                      <div className="flex h-full items-center justify-center">Loading correlation data...</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ScatterChart>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis type="number" dataKey="cgpa" name="CGPA" domain={[0, 10]} />
+                          <YAxis type="number" dataKey="offers" name="Offers" allowDecimals={false} />
+                          <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                          <Legend />
+                          <Scatter name="Students" data={correlationData} fill="#82ca9d" />
+                        </ScatterChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 </CardContent>
                 <CardFooter>
                   <Button 
                     variant="outline" 
                     className="w-full"
-                    onClick={() => handleDownloadChart('salary-distribution')}
+                    onClick={() => handleDownloadChart('cgpa-offers-correlation')}
                     disabled={downloading}
                   >
                     <Download className="mr-2 h-4 w-4" />

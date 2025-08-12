@@ -109,6 +109,10 @@ export const placementService = {
     const response = await api.get('/placements/charts/department');
     return response.data;
   },
+  getCgpaOffersCorrelation: async () => {
+    const response = await api.get('/placements/charts/cgpa-offers-correlation');
+    return response.data;
+  },
   downloadChart: async (chartType: string, format: string = 'pdf') => {
     const response = await api.get(`/placements/charts/download/${chartType}`, {
       params: { format },
