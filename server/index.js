@@ -38,6 +38,18 @@ app.use('/api/employers', employerRoutes);
 app.use('/api/placements', placementRoutes);
 app.use('/api/auth', authRoutes);
 
+// Health check route
+app.head('/api/health', (req, res) => {
+  res.status(200).end();
+});
+app.get('/api/health', async (req, res) => {
+  try {
+    res.status(200).json({ status: 'ok' });
+  } catch (e) {
+    res.status(500).json({ status: 'error' });
+  }
+});
+
 // Home route
 app.get('/', (req, res) => {
   res.send('Placement Services Management System API');
